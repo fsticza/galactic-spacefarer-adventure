@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+app/*/node_modules/
+
+# CAP build output and local databases
+gen/
+*.sqlite
+*.sqlite-journal
+mta_archives/
+resources/
+
+# Environment and secrets
+.env
+default-env.json
+
+# Editors and OS
+.DS_Store
+*.log

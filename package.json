@@ -1,0 +1,97 @@
+{
+  "name": "galactic-spacefarer-adventure",
+  "version": "1.0.0",
+  "description": "Galactic Spacefarer Adventure: SAP CAP service and Fiori Elements app (SAP BTP full-stack take-home)",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@cap-js/hana": "^3",
+    "@sap/cds": "^10",
+    "@sap/xssec": "^4",
+    "nodemailer": "^10.0.10"
+  },
+  "devDependencies": {
+    "@cap-js/cds-test": "^1.0.2",
+    "@cap-js/sqlite": "^3",
+    "@sap/cds-dk": "^10.1.1",
+    "@sap/eslint-plugin-cds": "^4.2.5",
+    "eslint": "^10.10.0",
+    "vitest": "^5.0.1"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch",
+    "watch-spacefarers": "cds watch --open galactic.spacefarers/index.html?sap-ui-xx-viewCache=false --livereload false",
+    "test": "vitest run",
+    "lint": "cds lint",
+    "build": "cds build --production"
+  },
+  "cds": {
+    "requires": {
+      "auth": {
+        "kind": "mocked",
+        "users": {
+          "xavier": {
+            "password": "planetx",
+            "roles": [
+              "SpacefarerManager"
+            ],
+            "attr": {
+              "planet": [
+                "X"
+              ]
+            }
+          },
+          "yvonne": {
+            "password": "planety",
+            "roles": [
+              "SpacefarerManager"
+            ],
+            "attr": {
+              "planet": [
+                "Y"
+              ]
+            }
+          },
+          "vera": {
+            "password": "vera",
+            "roles": [
+              "SpacefarerViewer"
+            ],
+            "attr": {
+              "planet": [
+                "X"
+              ]
+            }
+          },
+          "zed": {
+            "password": "galaxy",
+            "roles": [
+              "GalacticAdmin"
+            ]
+          },
+          "nobody": {
+            "password": "nobody",
+            "roles": []
+          },
+          "*": false
+        }
+      },
+      "[production]": {
+        "auth": {
+          "kind": "xsuaa"
+        }
+      }
+    },
+    "mail": {
+      "transport": "json",
+      "from": "mission-control@galactic.example"
+    }
+  },
+  "sapux": [
+    "app/spacefarers"
+  ]
+}
