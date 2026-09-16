@@ -1,0 +1,63 @@
+{
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.SpacefarerViewer",
+      "description": "Read spacefarers of the planets assigned via the planet attribute"
+    },
+    {
+      "name": "$XSAPPNAME.SpacefarerManager",
+      "description": "Create, edit and delete spacefarers of the planets assigned via the planet attribute"
+    },
+    {
+      "name": "$XSAPPNAME.GalacticAdmin",
+      "description": "Full access to spacefarers of every planet"
+    }
+  ],
+  "attributes": [
+    {
+      "name": "planet",
+      "description": "Planet code(s) whose spacefarers the user may access",
+      "valueType": "s",
+      "valueRequired": false
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "SpacefarerViewer",
+      "description": "Read spacefarers of the planets assigned via the planet attribute",
+      "scope-references": [
+        "$XSAPPNAME.SpacefarerViewer"
+      ],
+      "attribute-references": [
+        "planet"
+      ]
+    },
+    {
+      "name": "SpacefarerManager",
+      "description": "Create, edit and delete spacefarers of the planets assigned via the planet attribute",
+      "scope-references": [
+        "$XSAPPNAME.SpacefarerManager"
+      ],
+      "attribute-references": [
+        "planet"
+      ]
+    },
+    {
+      "name": "GalacticAdmin",
+      "description": "Full access to spacefarers of every planet",
+      "scope-references": [
+        "$XSAPPNAME.GalacticAdmin"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "userattributes",
+      "description": "Carries the planet attribute for users without an application role",
+      "default-role-name": "Attributes of a User",
+      "scope-references": [],
+      "attribute-references": [
+        "planet"
+      ]
+    }
+  ]
+}
