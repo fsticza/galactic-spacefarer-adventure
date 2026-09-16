@@ -1,0 +1,151 @@
+### Galactic Spacefarer Adventure — sample requests
+#
+# For the VS Code "REST Client" extension (or IntelliJ's compatible .http runner).
+# `Authorization: Basic <user> <password>` is REST Client's shorthand for Basic auth — it
+# base64-encodes the credentials for you, no need to do it by hand.
+#
+# Start the server first:  npm run watch   (serves on {{host}})
+#
+# Mocked users (see package.json cds.requires.auth / README.md "Security model"):
+#   xavier / planetx  SpacefarerManager  Planet X
+#   yvonne / planety  SpacefarerManager  Planet Y
+#   vera   / vera     SpacefarerViewer   Planet X
+#   zed    / galaxy   GalacticAdmin      (all planets)
+#   nobody / nobody   (no role -> 403)
+#
+# All requests below were verified against a running `npx cds serve` on this checkout.
+
+@host = http://localhost:4004
+@base = {{host}}/odata/v4/spacefarers
+
+### List as Xavier (Manager, Planet X) — with $count; expect 24, all rows originPlanet_code = X
+GET {{base}}/Spacefarers?$count=true
+Authorization: Basic xavier planetx
+
+### List as Yvonne (Manager, Planet Y) — expect 20, all rows originPlanet_code = Y
+GET {{base}}/Spacefarers?$count=true
+Authorization: Basic yvonne planety
+
+### Admin list as Zed (GalacticAdmin, all planets) — default page size 20 of 60,
+### the response carries @odata.nextLink; follow it (or add $skip=20) to page further
+GET {{base}}/Spacefarers
+Authorization: Basic zed galaxy
+
+### Anonymous request — no Authorization header at all -> 401
+GET {{base}}/Spacefarers
+
+### Authenticated but role-less user — nobody has no galactic role -> 403
+GET {{base}}/Spacefarers
+Authorization: Basic nobody nobody
+
+### Create an active spacefarer directly as Xavier (IsActiveEntity: true bypasses the draft).
+### Planet is defaulted to X (Xavier's own planet), onboarding bonus/call sign/certification
+### are computed by the before-CREATE handlers; a client-supplied callSign is ignored.
+POST {{base}}/Spacefarers
+Authorization: Basic xavier planetx
+Content-Type: application/json
+
+{
+  "IsActiveEntity": true,
+  "name": "Rin Okafor",
+  "email": "rin.okafor@example.com",
+  "wormholeNavigationSkill": 3,
+  "spacesuitColor_code": "RED",
+  "callSign": "HACKED-TRY-ME"
+}
+
+### Cross-planet create: Xavier (Planet X) tries to launch a spacefarer "on" Planet Y.
+### assertPlanetAllowed rejects this with 403, targeting originPlanet_code.
+POST {{base}}/Spacefarers
+Authorization: Basic xavier planetx
+Content-Type: application/json
+
+{
+  "IsActiveEntity": true,
+  "name": "Cross Planet Candidate",
+  "email": "cross.planet@example.com",
+  "spacesuitColor_code": "RED",
+  "originPlanet_code": "Y"
+}
+
+### Position below the required minimum wormhole skill: Chief Navigator (b...003, dept
+### Wormhole Navigation) requires skill 9; this candidate only has 2 -> 400 on
+### wormholeNavigationSkill.
+POST {{base}}/Spacefarers
+Authorization: Basic xavier planetx
+Content-Type: application/json
+
+{
+  "IsActiveEntity": true,
+  "name": "Rookie Cadet",
+  "email": "rookie.cadet@example.com",
+  "spacesuitColor_code": "RED",
+  "wormholeNavigationSkill": 2,
+  "position_ID": "b0000000-0000-4000-8000-000000000003"
+}
+
+### Duplicate email: aria.voss@galactic.example already belongs to a seeded Planet X
+### spacefarer -> 400 targeting email (the pre-check turns what would be a raw SQLite
+### constraint error into a clean, field-targeted validation error).
+POST {{base}}/Spacefarers
+Authorization: Basic xavier planetx
+Content-Type: application/json
+
+{
+  "IsActiveEntity": true,
+  "name": "Duplicate Aria",
+  "email": "aria.voss@galactic.example",
+  "spacesuitColor_code": "RED"
+}
+
+### --- Draft flow (Yvonne, Manager on Planet Y) ---
+
+### 1. Create a new draft. Planet defaults to Y, spacesuit color defaults to SILVER;
+### none of the before-CREATE enhancements run yet (this is only a draft).
+# @name draftCreate
+POST {{base}}/Spacefarers
+Authorization: Basic yvonne planety
+Content-Type: application/json
+
+{}
+
+### 2. Fill in the required fields on the draft with a PATCH.
+PATCH {{base}}/Spacefarers(ID={{draftCreate.response.body.$.ID}},IsActiveEntity=false)
+Authorization: Basic yvonne planety
+Content-Type: application/json
+
+{
+  "name": "Nova Quill",
+  "email": "nova.quill@example.com",
+  "wormholeNavigationSkill": 5
+}
+
+### 3. Activate the draft — this runs the very same before-CREATE handlers as a direct
+### POST (onboarding bonus, call sign, certification, launchedAt) and returns 201.
+POST {{base}}/Spacefarers(ID={{draftCreate.response.body.$.ID}},IsActiveEntity=false)/SpacefarerService.draftActivate
+Authorization: Basic yvonne planety
+
+### --- Editing an existing spacefarer ---
+
+### Edit the spacesuit color of an existing, already-active spacefarer (Aria Voss, Planet X,
+### seeded ID) directly — no draft needed for a plain field update; expect 200.
+PATCH {{base}}/Spacefarers(ID=c0000000-0000-4000-8000-000000000001,IsActiveEntity=true)
+Authorization: Basic xavier planetx
+Content-Type: application/json
+
+{
+  "spacesuitColor_code": "GOLD"
+}
+
+### $filter on the calculated stardustStatus element (Legendary = stardustCollection >= 10000)
+GET {{base}}/Spacefarers?$filter=stardustStatus eq 'Legendary'&$select=name,stardustCollection,stardustStatus
+Authorization: Basic zed galaxy
+
+### $orderby on wormholeNavigationSkill, descending, top 5
+GET {{base}}/Spacefarers?$orderby=wormholeNavigationSkill desc&$top=5&$select=name,wormholeNavigationSkill
+Authorization: Basic zed galaxy
+
+### Value list metadata: $metadata carries Common.ValueList on originPlanet_code,
+### spacesuitColor_code and department_ID, pointing at Planets / SpacesuitColors / Departments
+GET {{base}}/$metadata
+Authorization: Basic xavier planetx
