@@ -97,7 +97,8 @@ describe('validateCandidate', () => {
     const problems = validateCandidate(candidate, position)
     expect(problems).to.have.lengthOf(1)
     expect(problems[0].field).to.equal('position_ID')
-    expect(problems[0].message).to.contain('Wormhole Pilot')
+    expect(problems[0].key).to.equal('POSITION_DEPARTMENT_MISMATCH')
+    expect(problems[0].args).to.deep.equal(['Wormhole Pilot'])
   })
 
   it('flags a skill below the position minimum, targeting wormholeNavigationSkill', () => {
@@ -106,6 +107,8 @@ describe('validateCandidate', () => {
     const problems = validateCandidate(candidate, position)
     expect(problems).to.have.lengthOf(1)
     expect(problems[0].field).to.equal('wormholeNavigationSkill')
+    expect(problems[0].key).to.equal('POSITION_SKILL_TOO_LOW')
+    expect(problems[0].args).to.deep.equal(['Chief Navigator', 9])
   })
 
   it('can report both problems at once', () => {
