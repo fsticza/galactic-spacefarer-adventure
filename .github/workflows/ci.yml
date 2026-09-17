@@ -44,12 +44,14 @@ jobs:
         uses: browser-actions/setup-chrome@v2
         with:
           chrome-version: stable
-      # app/spacefarers is not an npm workspace: it has its own package.json (and its own
-      # gitignored package-lock.json, see the root .gitignore) with the UI5 tooling and
-      # test dependencies, independent of the root install `verify` uses.
+      # app/spacefarers is not an npm workspace: it has its own package.json and lockfile
+      # with the UI5 tooling and test dependencies, independent of the root install
+      # `verify` uses. `npm ci`, not `npm install`: this job's result must depend on the
+      # committed lockfile rather than on whatever minor versions of karma, karma-ui5 or
+      # the mock server happen to publish before the next run.
       - name: Install the Fiori app's own tooling
         working-directory: app/spacefarers
-        run: npm install
+        run: npm ci
       - name: Run the OPA5 journeys headlessly
         working-directory: app/spacefarers
         run: npm run test:opa
