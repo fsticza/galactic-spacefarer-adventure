@@ -1,10 +1,11 @@
 # Galactic Spacefarer Adventure
 
-An SAP CAP (Node.js) service and SAP Fiori Elements V4 List Report / Object Page app for
-managing a roster of spacefarers across the SAP galaxy — a take-home assessment for an SAP BTP
-full-stack role. The service validates and enhances every new candidate (stardust collection,
-wormhole navigation skill, certification, call sign), isolates the roster by origin planet, and
-sends a congratulation email through a transactional queue once a candidate has launched.
+An SAP CAP (Node.js) service, written in TypeScript, and an SAP Fiori Elements V4 List Report /
+Object Page app in JavaScript, for managing a roster of spacefarers across the SAP galaxy — a
+take-home assessment for an SAP BTP full-stack role. The service validates and enhances every
+new candidate (stardust collection, wormhole navigation skill, certification, call sign),
+isolates the roster by origin planet, and sends a congratulation email through a transactional
+queue once a candidate has launched.
 
 `PLAN.md` and `PLAN-REVIEW-codex.md` document the design and an external review that shaped it.
 
@@ -14,12 +15,12 @@ sends a congratulation email through a transactional queue once a candidate has 
 |---|---|---|
 | 1 | Data model (stardust, wormhole skill, planet, suit color, departments, positions) | `db/schema.cds`, `db/data/*.csv` |
 | 2 | Protected CAP service with CRUD | `srv/spacefarer-service.cds`, `package.json` (`cds.requires.auth`), `xs-security.json` |
-| 3 | `before CREATE` validate + enhance, `after CREATE` congratulation email | `srv/spacefarer-service.js`, `srv/lib/spacefarer-rules.js`, `srv/notification-service.cds`, `srv/notification-service.js` |
+| 3 | `before CREATE` validate + enhance, `after CREATE` congratulation email | `srv/spacefarer-service.ts`, `srv/lib/spacefarer-rules.ts`, `srv/notification-service.cds`, `srv/notification-service.ts` |
 | 4 | List Report: status + suit color, sort/filter/paging | `app/spacefarers/annotations.cds` (`UI.LineItem`, `UI.PresentationVariant`), `db/schema.cds` (calculated elements) |
 | 5 | Object Page: editable stardust + suit color | `app/spacefarers/annotations.cds` (`UI.FieldGroup`s, `Common.FieldControl`) |
 | Extra | SQLite locally | `@cap-js/sqlite` dev dependency, default `cds.requires.db` profile |
 | Extra | Only authorized users | `@requires` on the service, `cds.requires.auth` mocked users, `xs-security.json` for production |
-| Extra | Planet X must not see Planet Y data | `@restrict` on `Spacefarers` + `assertPlanetAllowed` in `srv/spacefarer-service.js` |
+| Extra | Planet X must not see Planet Y data | `@restrict` on `Spacefarers` + `assertPlanetAllowed` in `srv/spacefarer-service.ts` |
 | Extra | Hosted on GitHub | `.github/workflows/ci.yml` (CI gate for the repository) |
 
 ## Quick start
@@ -29,8 +30,13 @@ is a local `devDependency` and all scripts call it through `npx`/`npm run`.
 
 ```bash
 npm install
+npm run generate-types   # cds-typer "*" -> writes @cds-models/ from the CDS model (gitignored)
 npm run watch      # starts the CAP server with the mocked users below
 ```
+
+`@cds-models/` is generated, not checked in; `npm run typecheck` and IDE type-checking need it,
+so run `npm run generate-types` (or `npm run build`, which regenerates it as part of the
+cds-typer build task) right after cloning.
 
 Open `http://localhost:4004` — it lists the service and an app link (`/spacefarers/webapp/`),
 or run `npm run watch-spacefarers` to open the app directly. The browser asks for basic auth;
@@ -45,9 +51,10 @@ or run `npm run watch-spacefarers` to open the app directly. The browser asks fo
 | nobody | nobody | (none — 403) | — |
 
 ```bash
-npm test    # vitest run  -> 6 files, 71 tests
-npm run lint     # cds lint -> no findings
-npm run build    # cds build --production -> gen/db (HANA), gen/srv (Node.js)
+npm test         # vitest run                                -> 6 files, 71 tests
+npm run lint      # cds lint                                  -> no findings (CDS model only; see Known limitations)
+npm run typecheck # tsc --noEmit -p tsconfig.typecheck.json    -> no output
+npm run build     # cds build --production -> gen/db (HANA), gen/srv (Node.js, compiled from TypeScript)
 ```
 
 `test/http/spacefarers.http` has ready-to-run requests for a REST Client / IntelliJ
@@ -60,7 +67,7 @@ Runtime flow from the Fiori app to the mailbox:
 ```mermaid
 flowchart LR
   UI["Fiori Elements app<br/>(List Report / Object Page)"] -->|OData v4| SVC[SpacefarerService]
-  SVC -->|before CREATE / UPDATE<br/>validate + enhance| RULES[spacefarer-rules.js]
+  SVC -->|before CREATE / UPDATE<br/>validate + enhance| RULES[spacefarer-rules.ts]
   SVC -->|after CREATE<br/>this.emit| EVT((SpacefarerLaunched))
   EVT --> NOTIF[NotificationService]
   NOTIF -->|cds.queued .send<br/>deliverWelcomeMail| OUTBOX[(cds.outbox.Messages)]
@@ -140,7 +147,7 @@ The predicate uses the **association path** `originPlanet.code`, not the generat
 `originPlanet_code` has not been found"; it only exists after OData processing generates it).
 This filters READ/UPDATE/DELETE, but **CAP's Node.js runtime does not validate CREATE/UPDATE
 input against a `@restrict where`** — nothing stops a Planet X manager from *creating* a row
-that names Planet Y. `assertPlanetAllowed` in `srv/spacefarer-service.js` closes that gap: it
+that names Planet Y. `assertPlanetAllowed` in `srv/spacefarer-service.ts` closes that gap: it
 runs on `NEW` (new drafts), `PATCH` (draft edits), `CREATE` and `UPDATE`, defaults the planet for
 a user with exactly one, and rejects any planet outside the user's `attr.planet` list with 403
 unless the user `is('GalacticAdmin')`.
@@ -160,6 +167,13 @@ planet value; `GalacticAdmin` has none (galaxy-wide by design); a fourth templat
 `userattributes`, carries the `planet` attribute for identities without an application scope. A
 role collection missing the attribute value restricts that user to nothing, not to everything.
 
+The three scope `description`s in `xs-security.json` are left exactly as `cds add xsuaa`/`cds
+build` generate them (`"SpacefarerViewer"`, `"SpacefarerManager"`, `"GalacticAdmin"`) — cds
+matches scopes by description, not by name, so a custom description there made `cds build`
+append a duplicate scope entry on every rebuild instead of updating the existing one. The four
+role-template `description`s and the `attribute-references` above are matched by name and survive
+a rebuild, so those stay hand-written.
+
 ### Curl recipe (all five reproduced on this checkout)
 
 ```bash
@@ -177,8 +191,8 @@ curl -s -u zed:galaxy 'localhost:4004/odata/v4/spacefarers/Spacefarers?$count=tr
 
 ## Task 3: validation, enhancement and the launch pipeline
 
-`before CREATE` on `Spacefarers` (`srv/spacefarer-service.js` + the pure functions in
-`srv/lib/spacefarer-rules.js`) runs after the declarative `@mandatory`/`@assert.*` checks and
+`before CREATE` on `Spacefarers` (`srv/spacefarer-service.ts` + the pure functions in
+`srv/lib/spacefarer-rules.ts`) runs after the declarative `@mandatory`/`@assert.*` checks and
 validates: **email uniqueness** (`@assert.unique` only becomes a DB index; the pre-check turns a
 would-be raw SQLite constraint error into a clean 400 on `email`), **position ⇄ department**
 (a given position must belong to the given department; a missing department is derived from the
@@ -212,7 +226,7 @@ afterwards, and a transport error leaves the row queued with `attempts + 1` for 
 targets the *consumer* service, so the queue runner's dispatch is never blocked by
 `SpacefarerService`'s own `@requires` check.
 
-Mail transport (`srv/notification-service.js`): nothing set (default) uses nodemailer's JSON
+Mail transport (`srv/notification-service.ts`): nothing set (default) uses nodemailer's JSON
 transport, which renders and logs the mail without sending it; `SMTP_URL`, or
 `MAIL_TRANSPORT=smtp`, switches to real SMTP delivery (see `.env.example`). To see a mail: run
 with the default transport, create a spacefarer, and watch the log for
@@ -260,18 +274,21 @@ Test Files  6 passed (6)
      Tests  71 passed (71)
 ```
 
-(`npm test`, reproduced on this checkout; `npm run lint` produced no output, i.e. no findings.)
+(`npm test`, reproduced on this checkout; `npm run lint` and `npm run typecheck` both produced no
+output, i.e. no findings.)
 
 | File | Covers |
 |---|---|
-| `rules.test.js` | Certification bands, call-sign formatting, `completeAssignment`, `validateCandidate`, `enhanceCandidate` (bonus, hazard bump, both caps, no-mutation) |
-| `auth.test.js` | 401 anonymous, 403 no-role; per-role counts (24/20/60); Planets visible to everyone; PATCH boundaries (viewer 403, own-planet 200, cross-planet 403/404) |
-| `create.test.js` | Full validation/enhancement matrix, direct active POST, cross-planet 403, missing-planet 400, admin create with hazard bonus, all 400 cases (range, duplicate email, below-minimum skill, position/department mismatch), calculated-element `$filter`/`$orderby`, paging, update re-validation, planet immutability, delete boundaries |
-| `draft.test.js` | New-draft defaults, PATCH, `draftActivate` running the CREATE handlers, cross-planet draft rejection, `draftEdit` on an existing row incl. cross-planet 403/404 |
-| `notifications.test.js` | Exactly one mail sent and outbox drained on success; nothing sent on a 400; a throwing transport leaves the message queued with `attempts >= 1` |
-| `metadata.test.js` | `$metadata` shape: draft `IsActiveEntity` key, `Common.ValueList` on the three FK properties, `Core.Computed` on `callSign`, `Capabilities.InsertRestrictions` on `Planets` |
+| `rules.test.ts` | Certification bands, call-sign formatting, `completeAssignment`, `validateCandidate`, `enhanceCandidate` (bonus, hazard bump, both caps, no-mutation) |
+| `auth.test.ts` | 401 anonymous, 403 no-role; per-role counts (24/20/60); Planets visible to everyone; PATCH boundaries (viewer 403, own-planet 200, cross-planet 403/404) |
+| `create.test.ts` | Full validation/enhancement matrix, direct active POST, cross-planet 403, missing-planet 400, admin create with hazard bonus, all 400 cases (range, duplicate email, below-minimum skill, position/department mismatch), calculated-element `$filter`/`$orderby`, paging, update re-validation, planet immutability, delete boundaries |
+| `draft.test.ts` | New-draft defaults, PATCH, `draftActivate` running the CREATE handlers, cross-planet draft rejection, `draftEdit` on an existing row incl. cross-planet 403/404 |
+| `notifications.test.ts` | Exactly one mail sent and outbox drained on success; nothing sent on a 400; a throwing transport leaves the message queued with `attempts >= 1` |
+| `metadata.test.ts` | `$metadata` shape: draft `IsActiveEntity` key, `Common.ValueList` on the three FK properties, `Core.Computed` on `callSign`, `Capabilities.InsertRestrictions` on `Planets` |
+| `helpers.ts` | Shared request-option constants (`asXavier`, ...), the `throwing` validateStatus option, and the `ODataCollection`/`ODataError`/`SpacefarerRow` types plus boundary-cast helpers used by the files above — no tests of its own |
 
-CI (`.github/workflows/ci.yml`) runs on Node 24: `npm ci`, `npm run lint`, `npm test`,
+CI (`.github/workflows/ci.yml`) runs on Node 24: `npm ci`, `npm run generate-types` (writes
+`@cds-models/`, which is gitignored), `npm run lint`, `npm run typecheck`, `npm test`,
 `npm run build`, on every push to `main` and every pull request.
 
 ## Deployment to SAP BTP (build-verified only, not deployed)
@@ -332,6 +349,46 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
   tests; kept as a deliberate least-privilege showcase.
 - **No custom bound action.** An earlier `awardStardust` action was cut: it bypassed the same
   validation path and added authorization/draft/range-testing surface for no real requirement.
+- **Node's native type stripping, not a loader.** `srv` and `test` run as plain Node ESM/TS:
+  relative imports carry an explicit `.ts` extension (e.g. `./lib/spacefarer-rules.ts`), enabled
+  by `allowImportingTsExtensions` + `rewriteRelativeImportExtensions` in `tsconfig.json`, so `tsc`
+  rewrites those specifiers to `.js` on emit while plain Node strips the types and runs the
+  source as-is. Running the suite through the `tsx` loader instead measured 37.7s versus 5.0s for
+  native stripping. `erasableSyntaxOnly` is on so nothing non-strippable (e.g. enums, parameter
+  properties) creeps in.
+- **`tsc` is the real gate, and it is wired into the build.** `cds build` runs the compiler
+  through the cds-typer build task and fails the build on type errors, so `npm run build`
+  double-checks what `npm run typecheck` already reports. `tsconfig.json` deliberately includes
+  only `srv` and `@cds-models` — otherwise `cds build` would compile the tests into `gen/srv` —
+  and `tsconfig.typecheck.json` extends it, widening `include` to `test` for local/CI checking.
+- **The `@sap/cds` path mapping has to point at the declaration file itself**,
+  `./node_modules/@cap-js/cds-types/dist/cds-types.d.ts`. The mapping `cds add typescript`
+  generates points at the package directory, which does not resolve under `moduleResolution:
+  NodeNext` (the package only exposes a `typings` field, not `exports`), and the resulting
+  `TS7016` cascades into "Property 'before' does not exist" on every service class.
+- **Tests must set `CDS_TYPESCRIPT`.** `vitest.config.ts` sets `env: { CDS_TYPESCRIPT: 'true' }`;
+  cds only looks for `.ts` service implementations when that variable is set (the `cds` CLI sets
+  it itself when it finds a `tsconfig.json`, but tests boot the server in-process and bypass the
+  CLI). Without it the server still starts and serves the entities, but **with no custom
+  handlers** — tests then fail with wrong status codes rather than with a load error, a silent
+  failure mode worth watching for.
+- **`#cds-models` is imported for types only.** A value import of a generated entity proxy at
+  module top level re-enters the `@sap/cds` facade before it has finished initializing and kills
+  the server with `TypeError: cds.log is not a function`. Entities still come from
+  `this.entities` / `cds.entities('galactic')` at runtime; `#cds-models/*` only supplies `import
+  type` positions.
+- **The `facade` constant in both service implementations is load-order defence, not style.**
+  `@sap/cds` is CommonJS; when `cds serve` imports the two service modules concurrently as native
+  ESM/TS, the default `import cds from '@sap/cds'` can still be unresolved at the point `class X
+  extends cds.ApplicationService` runs, throwing `TypeError: Class extends value undefined is not
+  a constructor or null`. Reading `globalThis.cds` with a fallback to the import fixes it —
+  verified 5 of 5 server starts failed without the fallback, 3 of 3 succeeded with it. Type
+  positions (`cds.Request`, `cds.User`, ...) still use the static import, which is resolved at
+  compile time and unaffected by which object the runtime import binds to.
+- **No `prepare` script for type generation.** `cds build` copies the project's `scripts` into
+  `gen/srv/package.json`, where a `prepare` hook would run again during the production `npm ci` —
+  `generate-types` and `typecheck` are invoked explicitly (in CI, and by `npm run build` via the
+  cds-typer build task) instead.
 
 ## Known limitations / next steps
 
@@ -340,14 +397,20 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
   SQLite profile or the production HANA profile would survive restarts.
 - **No browser-driven UI test** exercises the generated app; coverage is at the OData/service
   level plus manual verification.
+- **ESLint does not cover the TypeScript sources.** `typescript-eslint` 8.70 supports TypeScript
+  `>=4.8.4 <6.1.0`, and there is no release yet supporting TypeScript 7, so `eslint.config.mjs`
+  has no rule set for `.ts` files at all — `npx eslint 'srv/**/*.ts'` reports every match ignored,
+  not clean. `npm run lint` (`cds lint`) therefore only covers the CDS model; `npm run typecheck`
+  and `npm run build` are what actually gate the TypeScript sources.
 
 ## Repository layout
 
 ```
 .
+├── @cds-models/                 generated by cds-typer (`npm run generate-types`); gitignored
 ├── .deploy/app-router/          standalone approuter (xs-app.json, package.json, default-env.json)
 ├── .env.example                 SMTP_URL / MAIL_TRANSPORT switches
-├── .github/workflows/ci.yml     npm ci, lint, test, build on Node 24
+├── .github/workflows/ci.yml     npm ci, generate-types, lint, typecheck, test, build on Node 24
 ├── app/
 │   ├── services.cds             pulls app/spacefarers/annotations.cds into the served model
 │   └── spacefarers/             generated Fiori Elements V4 app (List Report + Object Page)
@@ -359,17 +422,19 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
 │   └── data/                     Planets(6) SpacesuitColors(8) Departments(6) Positions(12) Spacefarers(60)
 ├── srv/
 │   ├── spacefarer-service.cds    SpacefarerService: draft-enabled Spacefarers, code lists, event
-│   ├── spacefarer-service.js     NEW/CREATE/UPDATE handlers, planet boundary, event emit
+│   ├── spacefarer-service.ts     NEW/CREATE/UPDATE handlers, planet boundary, event emit
 │   ├── notification-service.cds  internal NotificationService (@protocol: 'none')
-│   ├── notification-service.js   nodemailer transport selection + mail template
-│   └── lib/spacefarer-rules.js   pure validation/enhancement functions (unit-tested)
+│   ├── notification-service.ts   nodemailer transport selection + mail template
+│   └── lib/spacefarer-rules.ts   pure validation/enhancement functions (unit-tested)
 ├── test/
-│   ├── *.test.js                 auth, create, draft, metadata, notifications, rules
+│   ├── *.test.ts                 auth, create, draft, metadata, notifications, rules
+│   ├── helpers.ts                shared request options, OData response types, boundary casts
 │   └── http/spacefarers.http     manual REST Client requests
 ├── xs-security.json              XSUAA scopes, role templates, planet attribute
 ├── mta.yaml                      srv + db-deployer + approuter modules, xsuaa + hana resources
 ├── package.json                  ESM, scripts, mocked users, mail config
-├── vitest.config.js, eslint.config.mjs
+├── tsconfig.json, tsconfig.typecheck.json    compiler options for the build / for local+CI checking
+├── vitest.config.ts, eslint.config.mjs
 ├── PLAN.md, PLAN-REVIEW-codex.md design notes and an external review
 └── README.md                     this file
 ```

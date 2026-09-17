@@ -2,25 +2,43 @@ import cds from '@sap/cds'
 const { POST, expect, data } = cds.test(import.meta.dirname + '/..')
 beforeEach(data.reset)
 
-const BASE = '/odata/v4/spacefarers'
-const asXavier = { auth: { username: 'xavier', password: 'planetx' } }
-const throwing = { validateStatus: () => true }
+import { BASE, asXavier, throwing, asSpacefarerRow } from './helpers.ts'
+import type { Message } from '#cds-models/cds/outbox'
 
-let notif
-let sent
+/** The shape of a mail recorded by the fake transporter used in these tests. */
+interface RecordedMail {
+  to: string
+  subject: string
+  text: string
+}
+
+/** The subset of NotificationService's shape these tests need: a swappable mail transporter. */
+interface TransporterLike {
+  sendMail: (mail: RecordedMail) => Promise<{ messageId: string }>
+}
+interface NotificationServiceLike {
+  transporter: TransporterLike
+}
+
+/** cds.flush() exists at runtime on newer @sap/cds versions but isn't declared in the shipped types. */
+type CdsWithFlush = typeof cds & { flush?: () => Promise<void> }
+
+let notif: NotificationServiceLike
+let sent: RecordedMail[]
 
 beforeEach(async () => {
-  notif = await cds.connect.to('NotificationService')
+  notif = (await cds.connect.to('NotificationService')) as unknown as NotificationServiceLike
   sent = []
   notif.transporter = { sendMail: async mail => { sent.push(mail); return { messageId: 'test' } } }
 })
 
 /** Waits for the transactional outbox to drain, however cds.flush() is (or isn't) implemented. */
 async function flushOutbox() {
-  if (typeof cds.flush === 'function') return cds.flush()
+  const cdsWithFlush = cds as CdsWithFlush
+  if (typeof cdsWithFlush.flush === 'function') return cdsWithFlush.flush()
   const start = Date.now()
   while (Date.now() - start < 5000) {
-    const rows = await SELECT.from('cds.outbox.Messages')
+    const rows = (await SELECT.from('cds.outbox.Messages')) as Message[]
     if (rows.length === 0) return
     await new Promise(r => setTimeout(r, 100))
   }
@@ -41,9 +59,9 @@ describe('notifications: welcome email on successful launch', () => {
     expect(sent).to.have.lengthOf(1)
     expect(sent[0].to).to.equal('nova.quill@example.com')
     expect(sent[0].subject).to.contain('Welcome aboard')
-    expect(sent[0].text).to.contain(res.data.callSign)
+    expect(sent[0].text).to.contain(asSpacefarerRow(res).callSign)
 
-    const remaining = await SELECT.from('cds.outbox.Messages')
+    const remaining = (await SELECT.from('cds.outbox.Messages')) as Message[]
     expect(remaining).to.have.lengthOf(0)
   })
 
@@ -59,7 +77,7 @@ describe('notifications: welcome email on successful launch', () => {
     await flushOutbox()
 
     expect(sent).to.have.lengthOf(0)
-    const remaining = await SELECT.from('cds.outbox.Messages')
+    const remaining = (await SELECT.from('cds.outbox.Messages')) as Message[]
     expect(remaining).to.have.lengthOf(0)
   })
 
@@ -79,7 +97,7 @@ describe('notifications: welcome email on successful launch', () => {
     await flushOutbox()
 
     expect(sent).to.have.lengthOf(0)
-    const remaining = await SELECT.from('cds.outbox.Messages')
+    const remaining = (await SELECT.from('cds.outbox.Messages')) as Message[]
     expect(remaining).to.have.lengthOf(1)
     expect(remaining[0].attempts).to.be.at.least(1)
 

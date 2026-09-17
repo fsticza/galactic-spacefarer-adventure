@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest'
 import {
   ONBOARDING_BONUS,
   HAZARD_BONUS,
@@ -11,7 +10,7 @@ import {
   completeAssignment,
   validateCandidate,
   enhanceCandidate,
-} from '../srv/lib/spacefarer-rules.js'
+} from '../srv/lib/spacefarer-rules.ts'
 
 // Pure unit tests: no cds.test() here, these functions have no CAP dependency.
 
