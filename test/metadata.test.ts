@@ -1,12 +1,14 @@
 import cds from '@sap/cds'
 const { GET, expect } = cds.test(import.meta.dirname + '/..')
 
+import { BASE, asXavier } from './helpers.ts'
+
 describe('SpacefarerService $metadata', () => {
-  let xml
+  let xml: string
 
   beforeAll(async () => {
-    const res = await GET('/odata/v4/spacefarers/$metadata', { auth: { username: 'xavier', password: 'planetx' } })
-    xml = res.data
+    const res = await GET(`${BASE}/$metadata`, asXavier)
+    xml = res.data as string
   })
 
   it('is served as XML text', () => {
@@ -59,7 +61,7 @@ describe('SpacefarerService $metadata', () => {
 })
 
 /** Extracts the first `${open}...${close}` slice from an XML string, or undefined if not found. */
-function extractBlock(xml, open, close) {
+function extractBlock(xml: string, open: string, close: string): string | undefined {
   const start = xml.indexOf(open)
   if (start === -1) return undefined
   const end = xml.indexOf(close, start)
@@ -68,6 +70,6 @@ function extractBlock(xml, open, close) {
 }
 
 /** Extracts the `<Annotations Target="...">...</Annotations>` block for a given target. */
-function extractAnnotationsBlock(xml, target) {
+function extractAnnotationsBlock(xml: string, target: string): string | undefined {
   return extractBlock(xml, `<Annotations Target="${target}">`, '</Annotations>')
 }

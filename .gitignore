@@ -9,6 +9,9 @@ gen/
 mta_archives/
 resources/
 
+# Generated from the CDS model by cds-typer: run `npm run generate-types`
+@cds-models/
+
 # Environment and secrets
 .env
 default-env.json

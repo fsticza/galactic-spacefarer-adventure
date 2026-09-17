@@ -1,18 +1,22 @@
 # Galactic Spacefarer Adventure: implementation plan (for review)
 
-> **Status (2026-09-16, end of day):** implemented. Everything in Steps 1–7 is done and verified
-> (`npm test`: 6 files, 71 tests green; `npm run lint` clean; `npm run build` produces gen/db HANA
-> artifacts and gen/srv). Deviations from the plan, all recorded in the review table below and in
-> README.md: `@Core.Immutable` was dropped because the cds 10 runtime cleanses immutable fields
-> from every draft PATCH (planet immutability lives in handlers, the UI uses a dynamic
-> `Common.FieldControl`); `@mandatory` on `originPlanet` was dropped because the generic check
-> runs before the handler can default the planet (the handler rejects a missing planet with a
-> targeted 400); an explicit email-uniqueness pre-check was added because `@assert.unique` is only
-> a database index; the Fiori app was generated headlessly with yo 4 and generator 1.32 on the
-> first attempt; `cds add http` fails in cds-dk 10.1.1, so the sample requests are hand-written;
-> the approuter lives in `.deploy/app-router` (cds-dk 10 convention) and the MTA has no HTML5
-> module, so the UI is not deployed by it (documented as a next step). README, sample requests,
-> commits and the GitHub repository are done.
+> **Status (2026-09-17):** implemented, then migrated to TypeScript. Everything in Steps 1–7 is
+> done and verified (`npm test`: 6 files, 71 tests green; `npm run lint` clean — CDS model only,
+> `.ts` files are outside its coverage, see the migration note below; `npm run typecheck` clean;
+> `npm run build` produces gen/db HANA artifacts and gen/srv compiled from TypeScript). Deviations
+> from the plan, all recorded in the review table below and in README.md: `@Core.Immutable` was
+> dropped because the cds 10 runtime cleanses immutable fields from every draft PATCH (planet
+> immutability lives in handlers, the UI uses a dynamic `Common.FieldControl`); `@mandatory` on
+> `originPlanet` was dropped because the generic check runs before the handler can default the
+> planet (the handler rejects a missing planet with a targeted 400); an explicit email-uniqueness
+> pre-check was added because `@assert.unique` is only a database index; the Fiori app was
+> generated headlessly with yo 4 and generator 1.32 on the first attempt; `cds add http` fails in
+> cds-dk 10.1.1, so the sample requests are hand-written; the approuter lives in
+> `.deploy/app-router` (cds-dk 10 convention) and the MTA has no HTML5 module, so the UI is not
+> deployed by it (documented as a next step). README, sample requests, commits and the GitHub
+> repository are done. `srv/` and `test/` (all still JavaScript when the above was written) were
+> later converted to TypeScript; `app/spacefarers` was left as JavaScript. See "Later change:
+> TypeScript migration" at the end of this document for what moved and why.
 
 ## Review outcome (Codex `gpt-5.6-sol`, 2026-09-16) and resulting revisions
 
@@ -408,3 +412,61 @@ Commit per step; finally
 3. Are the enhancement rules (bonus, skill bump, certification) a sensible reading of
    "validating and enhancing their stardust collection and wormhole navigation skills"?
 4. Anything in the cds 10 specifics above that looks wrong or outdated?
+
+## Later change: TypeScript migration (2026-09-17)
+
+Everything above this section is the plan and review as they stood before this change and is
+left as written. After Steps 1–8 were implemented and reviewed, the CAP service and its test
+suite were converted from JavaScript to TypeScript, as a further hardening pass on top of an
+already-working, already-reviewed implementation. `app/spacefarers` (generated Fiori Elements
+app) was left as JavaScript — the migration is about the hand-written service code, not the
+generated UI.
+
+**What moved:** `srv/spacefarer-service.js` → `.ts`, `srv/notification-service.js` → `.ts`,
+`srv/lib/spacefarer-rules.js` → `.ts`, all six `test/*.test.js` → `.ts`, `vitest.config.js` →
+`.ts`. New: `tsconfig.json` (scoped to `srv` + `@cds-models`, so `cds build` — which compiles
+everything `tsconfig.json` includes — does not pull the tests into `gen/srv`),
+`tsconfig.typecheck.json` (extends it, widens `include` to `test`, `noEmit`), `test/helpers.ts` (shared
+request-option constants and `ODataCollection`/`ODataError`/`SpacefarerRow` types with boundary-
+cast helpers, replacing duplicated setup across the test files). New devDependencies: `typescript`
+7, `@cap-js/cds-types`, `@cap-js/cds-typer`, `@types/node`, `@types/nodemailer`, `tsx`. New
+scripts: `generate-types` (`cds-typer "*"`, writes the gitignored `@cds-models/`) and `typecheck`
+(`tsc --noEmit -p tsconfig.typecheck.json`). CI now runs `npm ci`, `generate-types`, `lint`,
+`typecheck`, `test`, `build`, in that order, on Node 24.
+
+**Decisions, condensed** (full rationale in README.md, "Design decisions and trade-offs"):
+
+- Plain Node's native type stripping runs the sources, not the `tsx` loader — relative imports
+  keep an explicit `.ts` extension (`allowImportingTsExtensions` +
+  `rewriteRelativeImportExtensions`) that `tsc` rewrites to `.js` on emit. Measured: `tsx` took
+  37.7s to run the suite, native stripping 5.0s. `erasableSyntaxOnly` is on to keep it that way.
+- `tsc` is wired into `cds build` (via the cds-typer build task) and fails the build on type
+  errors, so `npm run build` is a second, independent check of what `npm run typecheck` reports.
+- The `@sap/cds` types `paths` mapping must point at
+  `./node_modules/@cap-js/cds-types/dist/cds-types.d.ts` itself. What `cds add typescript`
+  generates points at the package directory, which doesn't resolve under `moduleResolution:
+  NodeNext` (the package only has `typings`, no `exports`) and cascades into `TS7016` /
+  "Property 'before' does not exist" on every service class.
+- Tests set `CDS_TYPESCRIPT: 'true'` in `vitest.config.ts` explicitly, because tests boot the
+  server in-process rather than through the `cds` CLI (which would set it itself when it sees a
+  `tsconfig.json`). Without it, cds silently serves the entities with no custom handlers at all —
+  a failure that looks like wrong status codes, not a load error.
+- `#cds-models/*` is imported with `import type` only. A value import of a generated entity proxy
+  at module scope re-enters the `@sap/cds` facade before it has initialized and crashes the server
+  (`cds.log is not a function`); entities still come from `this.entities` / `cds.entities(...)`
+  at runtime.
+- Both service files read `globalThis.cds` (falling back to the static import) into a `facade`
+  constant, because `cds serve` loading the two service modules concurrently as native ESM/TS can
+  leave the default `@sap/cds` import unresolved at class-definition time, throwing "Class extends
+  value undefined is not a constructor". Verified 5/5 failures without the fallback, 3/3 successes
+  with it.
+- No `prepare` script for type generation: `cds build` copies `scripts` into
+  `gen/srv/package.json`, where a `prepare` hook would re-run during the production `npm ci`.
+- While touching `xs-security.json` for other reasons, confirmed its three scope `description`s
+  must stay exactly as `cds` generates them (`"SpacefarerViewer"`, `"SpacefarerManager"`,
+  `"GalacticAdmin"`) — cds matches scopes by description, and a custom one made `cds build` append
+  a duplicate scope on every rebuild. The role-template descriptions and `attribute-references`
+  are matched by name and stay hand-written, unaffected.
+- Known gap: `typescript-eslint` 8.70 supports TypeScript `>=4.8.4 <6.1.0`, and there is no release
+  yet for TypeScript 7, so `.ts` files have no ESLint rule set at all (`npm run lint` covers only
+  the CDS model). `npm run typecheck` and `npm run build` are what gate the TypeScript sources.
