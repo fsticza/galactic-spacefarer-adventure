@@ -15,10 +15,15 @@ export const MAX_STARDUST = 1_000_000
 /** The subset of a spacefarer the rules read: a payload under construction, not a stored row. */
 export type Candidate = Partial<Spacefarer>
 
-/** A validation problem, reported on the element it belongs to. */
+/**
+ * A validation problem, reported on the element it belongs to. Carries an i18n message key and
+ * its placeholder arguments rather than a formatted sentence: this module stays free of CAP
+ * dependencies, so resolving the key against a text bundle is left to the service layer.
+ */
 export interface Problem {
   field: string
-  message: string
+  key: string
+  args?: unknown[]
 }
 
 /** Wormhole certification band for a navigation skill (1..10). */
@@ -55,7 +60,8 @@ export function validateCandidate(candidate: Candidate, position?: Partial<Posit
   if (candidate.department_ID && position.department_ID && position.department_ID !== candidate.department_ID) {
     problems.push({
       field: 'position_ID',
-      message: `Position '${position.title}' belongs to a different department`,
+      key: 'POSITION_DEPARTMENT_MISMATCH',
+      args: [position.title],
     })
   }
   const skill = candidate.wormholeNavigationSkill ?? MIN_SKILL
@@ -63,7 +69,8 @@ export function validateCandidate(candidate: Candidate, position?: Partial<Posit
   if (skill < required) {
     problems.push({
       field: 'wormholeNavigationSkill',
-      message: `Position '${position.title}' requires a wormhole navigation skill of ${required} or higher`,
+      key: 'POSITION_SKILL_TOO_LOW',
+      args: [position.title, required],
     })
   }
   return problems

@@ -8,7 +8,7 @@ const planetsOf = (user: CDS.User): string[] =>
 
 /** A spacefarer's origin planet is fixed once they have launched. */
 const rejectPlanetChange = (req: CDS.Request) =>
-  req.reject(400, 'The origin planet of a spacefarer cannot be changed', 'originPlanet_code')
+  req.reject(400, 'ORIGIN_PLANET_IMMUTABLE', 'originPlanet_code')
 
 /** Key of the addressed spacefarer for UPDATE and draft PATCH requests. */
 const keyOf = (req: CDS.Request): string | undefined => {
@@ -42,10 +42,10 @@ export class SpacefarerService extends cds.ApplicationService {
       const creating = req.event === 'NEW' || req.event === 'CREATE'
       if (creating && !data.originPlanet_code && planets.length === 1) data.originPlanet_code = planets[0]
       const planet = data.originPlanet_code
-      if (req.event === 'CREATE' && !planet) return req.reject(400, 'Provide the origin planet', 'originPlanet_code')
+      if (req.event === 'CREATE' && !planet) return req.reject(400, 'ORIGIN_PLANET_REQUIRED', 'originPlanet_code')
       if (req.user.is('GalacticAdmin')) return
       if (planet && !planets.includes(planet)) {
-        return req.reject(403, `Cosmic invader alert: you may not assign spacefarers to planet '${planet}'`, 'originPlanet_code')
+        return req.reject(403, 'ORIGIN_PLANET_FORBIDDEN', 'originPlanet_code', [planet])
       }
     }
 
@@ -54,7 +54,7 @@ export class SpacefarerService extends cds.ApplicationService {
     const assertEmailAvailable = async (req: CDS.Request, email: string | null | undefined, ownID: string | undefined) => {
       if (!email) return
       const clash = (await SELECT.one.from(SpacefarerRows).columns('ID').where({ email })) as Pick<Spacefarer, 'ID'> | null
-      if (clash && clash.ID !== ownID) req.error(400, 'This email address is already registered with another spacefarer', 'email')
+      if (clash && clash.ID !== ownID) req.error(400, 'EMAIL_ALREADY_REGISTERED', 'email')
     }
 
     this.before('NEW', SpacefarerDrafts, (req: CDS.Request) => {
@@ -89,7 +89,7 @@ export class SpacefarerService extends cds.ApplicationService {
       ])) as [Planet | null, Position | null]
       await assertEmailAvailable(req, candidate.email, candidate.ID)
       Object.assign(candidate, completeAssignment(candidate, position))
-      for (const { field, message } of validateCandidate(candidate, position)) req.error(400, message, field)
+      for (const { field, key, args } of validateCandidate(candidate, position)) req.error(400, key, field, args)
       if (req.errors) return
       Object.assign(candidate, enhanceCandidate(candidate, planet ?? {}))
       LOG.info(`Candidate ${candidate.name} prepared for launch as ${candidate.callSign}`)
@@ -109,7 +109,7 @@ export class SpacefarerService extends cds.ApplicationService {
       const position = merged.position_ID ? ((await SELECT.one.from(Positions, merged.position_ID)) as Position | null) : null
       Object.assign(changes, completeAssignment(merged, position))
       Object.assign(merged, changes)
-      for (const { field, message } of validateCandidate(merged, position)) req.error(400, message, field)
+      for (const { field, key, args } of validateCandidate(merged, position)) req.error(400, key, field, args)
       if (req.errors) return
       if (changes.wormholeNavigationSkill != null) changes.wormholeCertification = certify(changes.wormholeNavigationSkill)
     })
