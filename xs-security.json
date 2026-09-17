@@ -2,15 +2,15 @@
   "scopes": [
     {
       "name": "$XSAPPNAME.SpacefarerViewer",
-      "description": "Read spacefarers of the planets assigned via the planet attribute"
+      "description": "SpacefarerViewer"
     },
     {
       "name": "$XSAPPNAME.SpacefarerManager",
-      "description": "Create, edit and delete spacefarers of the planets assigned via the planet attribute"
+      "description": "SpacefarerManager"
     },
     {
       "name": "$XSAPPNAME.GalacticAdmin",
-      "description": "Full access to spacefarers of every planet"
+      "description": "GalacticAdmin"
     }
   ],
   "attributes": [
