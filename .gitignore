@@ -2,6 +2,10 @@
 node_modules/
 app/*/node_modules/
 
+# UI5 tooling lockfiles under app/: nothing installs them — CI and the MTA build
+# run `npm ci` at the root only, and the Fiori app is served through `cds watch`.
+app/*/package-lock.json
+
 # CAP build output and local databases
 gen/
 *.sqlite
