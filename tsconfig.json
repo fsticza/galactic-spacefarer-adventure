@@ -1,4 +1,12 @@
 {
+  "//": [
+    "cds build compiles everything this file includes into gen/srv, so the sources are listed here",
+    "and the tests are added separately by tsconfig.typecheck.json.",
+    "The @sap/cds mapping points at the declaration file rather than at the package directory that",
+    "`cds add typescript` generates: @cap-js/cds-types declares only `typings`, which NodeNext",
+    "resolution does not pick up, and the resulting TS7016 cascades into 'Property before does not",
+    "exist' on every service class."
+  ],
   "compilerOptions": {
     "target": "ESNext",
     "module": "NodeNext",

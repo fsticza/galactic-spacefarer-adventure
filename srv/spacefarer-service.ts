@@ -1,42 +1,31 @@
-import cds from '@sap/cds'
+import { cds, type CDS } from './lib/cds.ts'
 import type { Planet, Position, Spacefarer } from '#cds-models/galactic'
 import { type Candidate, certify, completeAssignment, enhanceCandidate, validateCandidate } from './lib/spacefarer-rules.ts'
 
-// `@sap/cds` also publishes itself as `global.cds`. When this module is dynamically imported
-// concurrently with a sibling service module (both loaded as native ESM/TS by `cds serve`), the
-// default import above can resolve to an empty placeholder that Node hands out before the
-// `@sap/cds` CommonJS module has actually finished evaluating. `global.cds` is assigned
-// synchronously inside that module and is always the fully-initialized singleton by the time a
-// service's `init()` runs, so the runtime facade is read from there, falling back to the plain
-// import (e.g. under test runners that don't exhibit the race). Type positions (`cds.Request`,
-// `cds.User`, ...) keep referring to the static import, which is resolved at compile time and is
-// unaffected by which object the import binds to at runtime.
-const facade: typeof cds = (globalThis as { cds?: typeof cds }).cds ?? cds
-
 /** Planet codes assigned to a user via the `planet` attribute (mocked users locally, XSUAA in production). */
-const planetsOf = (user: cds.User): string[] =>
+const planetsOf = (user: CDS.User): string[] =>
   ([] as string[]).concat((user.attr?.planet as string | string[] | undefined) ?? []).filter(Boolean)
 
 /** A spacefarer's origin planet is fixed once they have launched. */
-const rejectPlanetChange = (req: cds.Request) =>
+const rejectPlanetChange = (req: CDS.Request) =>
   req.reject(400, 'The origin planet of a spacefarer cannot be changed', 'originPlanet_code')
 
 /** Key of the addressed spacefarer for UPDATE and draft PATCH requests. */
-const keyOf = (req: cds.Request): string | undefined => {
+const keyOf = (req: CDS.Request): string | undefined => {
   const data = req.data as Candidate
   const param = req.params?.[0]
   return data.ID ?? (typeof param === 'object' ? (param as { ID?: string }).ID : (param as string | undefined))
 }
 
-export class SpacefarerService extends facade.ApplicationService {
+export class SpacefarerService extends cds.ApplicationService {
   override init() {
-    // `cds.log`/`cds.ql` are only populated once the runtime has bootstrapped, so they are read
-    // here rather than at module scope (a module-scope access crashes the server at load).
-    const LOG = facade.log('spacefarers')
-    const { SELECT } = facade.ql
+    // Read here rather than at module scope: the cds runtime is only bootstrapped by the time
+    // a service initialises.
+    const LOG = cds.log('spacefarers')
+    const { SELECT } = cds.ql
     const Spacefarers = this.entities.Spacefarers! // registered from spacefarer-service.cds
     const SpacefarerDrafts = Spacefarers.drafts! // present because Spacefarers carries @odata.draft.enabled
-    const galactic = facade.entities('galactic')
+    const galactic = cds.entities('galactic')
     const SpacefarerRows = galactic.Spacefarers! // the underlying db.Spacefarers entity
     const Planets = galactic.Planets!
     const Positions = galactic.Positions!
@@ -47,7 +36,7 @@ export class SpacefarerService extends facade.ApplicationService {
     // Planet X could create a spacefarer "on" Planet Y. The same check guards new drafts and
     // draft edits, so a draft never violates the planet boundary either.
     // ------------------------------------------------------------------------------------------
-    const assertPlanetAllowed = (req: cds.Request) => {
+    const assertPlanetAllowed = (req: CDS.Request) => {
       const data = req.data as Candidate
       const planets = planetsOf(req.user)
       const creating = req.event === 'NEW' || req.event === 'CREATE'
@@ -62,18 +51,18 @@ export class SpacefarerService extends facade.ApplicationService {
 
     // @assert.unique only becomes a database index; check up front so a clash is a clean 400 on
     // the field instead of a raw constraint error, for drafts, direct creates and edits alike.
-    const assertEmailAvailable = async (req: cds.Request, email: string | null | undefined, ownID: string | undefined) => {
+    const assertEmailAvailable = async (req: CDS.Request, email: string | null | undefined, ownID: string | undefined) => {
       if (!email) return
       const clash = (await SELECT.one.from(SpacefarerRows).columns('ID').where({ email })) as Pick<Spacefarer, 'ID'> | null
       if (clash && clash.ID !== ownID) req.error(400, 'This email address is already registered with another spacefarer', 'email')
     }
 
-    this.before('NEW', SpacefarerDrafts, (req: cds.Request) => {
+    this.before('NEW', SpacefarerDrafts, (req: CDS.Request) => {
       const data = req.data as Candidate
       if (!data.spacesuitColor_code) data.spacesuitColor_code = 'SILVER'
       return assertPlanetAllowed(req)
     })
-    this.before('PATCH', SpacefarerDrafts, async (req: cds.Request) => {
+    this.before('PATCH', SpacefarerDrafts, async (req: CDS.Request) => {
       const data = req.data as Candidate
       if ('email' in data) await assertEmailAvailable(req, data.email, keyOf(req))
       if ('originPlanet_code' in data) {
@@ -92,7 +81,7 @@ export class SpacefarerService extends facade.ApplicationService {
     // (@mandatory, @assert.*) have already run at this point. Eligibility for a position is
     // checked against the candidate's own skill, before the hazard bump is applied.
     // ------------------------------------------------------------------------------------------
-    this.before('CREATE', Spacefarers, async (req: cds.Request) => {
+    this.before('CREATE', Spacefarers, async (req: CDS.Request) => {
       const candidate = req.data as Candidate
       const [planet, position] = (await Promise.all([
         candidate.originPlanet_code ? SELECT.one.from(Planets, candidate.originPlanet_code) : null,
@@ -108,7 +97,7 @@ export class SpacefarerService extends facade.ApplicationService {
 
     // Edits never move a spacefarer to another planet; assignments stay consistent (re-validate
     // the merged row) and the certification follows the skill.
-    this.before('UPDATE', Spacefarers, async (req: cds.Request) => {
+    this.before('UPDATE', Spacefarers, async (req: CDS.Request) => {
       const changes = req.data as Candidate
       const touched = ['email', 'originPlanet_code', 'position_ID', 'department_ID', 'wormholeNavigationSkill'].some(field => field in changes)
       if (!touched) return
@@ -130,7 +119,7 @@ export class SpacefarerService extends facade.ApplicationService {
     // subscribes to it and queues the congratulation email inside this very transaction, so the
     // mail is only sent once the launch has been committed, and never if it fails.
     // ------------------------------------------------------------------------------------------
-    this.after('CREATE', Spacefarers, async (_result: unknown, req: cds.Request) => {
+    this.after('CREATE', Spacefarers, async (_result: unknown, req: CDS.Request) => {
       const s = req.data as Candidate
       await this.emit('SpacefarerLaunched', {
         ID: s.ID,

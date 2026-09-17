@@ -426,7 +426,8 @@ generated UI.
 `srv/lib/spacefarer-rules.js` → `.ts`, all six `test/*.test.js` → `.ts`, `vitest.config.js` →
 `.ts`. New: `tsconfig.json` (scoped to `srv` + `@cds-models`, so `cds build` — which compiles
 everything `tsconfig.json` includes — does not pull the tests into `gen/srv`),
-`tsconfig.typecheck.json` (extends it, widens `include` to `test`, `noEmit`), `test/helpers.ts` (shared
+`tsconfig.typecheck.json` (extends it, widens `include` to `test`, `noEmit`), `srv/lib/cds.ts`
+(loads the `@sap/cds` singleton synchronously; see below), `test/helpers.ts` (shared
 request-option constants and `ODataCollection`/`ODataError`/`SpacefarerRow` types with boundary-
 cast helpers, replacing duplicated setup across the test files). New devDependencies: `typescript`
 7, `@cap-js/cds-types`, `@cap-js/cds-typer`, `@types/node`, `@types/nodemailer`, `tsx`. New
@@ -443,23 +444,29 @@ scripts: `generate-types` (`cds-typer "*"`, writes the gitignored `@cds-models/`
 - `tsc` is wired into `cds build` (via the cds-typer build task) and fails the build on type
   errors, so `npm run build` is a second, independent check of what `npm run typecheck` reports.
 - The `@sap/cds` types `paths` mapping must point at
-  `./node_modules/@cap-js/cds-types/dist/cds-types.d.ts` itself. What `cds add typescript`
-  generates points at the package directory, which doesn't resolve under `moduleResolution:
-  NodeNext` (the package only has `typings`, no `exports`) and cascades into `TS7016` /
-  "Property 'before' does not exist" on every service class.
+  `./node_modules/@cap-js/cds-types/dist/cds-types.d.ts` itself, now recorded in a `"//"` comment
+  in `tsconfig.json`. What `cds add typescript` generates points at the package directory instead,
+  which doesn't resolve under `moduleResolution: NodeNext` (the package only has `typings`, no
+  `exports`) and cascades into `TS7016` / "Property 'before' does not exist" on every service
+  class — not something a version bump fixes, either: `@cap-js/cds-types` 0.19 still ships no
+  `types`/`exports` field (0.18.0 is installed here).
 - Tests set `CDS_TYPESCRIPT: 'true'` in `vitest.config.ts` explicitly, because tests boot the
   server in-process rather than through the `cds` CLI (which would set it itself when it sees a
-  `tsconfig.json`). Without it, cds silently serves the entities with no custom handlers at all —
-  a failure that looks like wrong status codes, not a load error.
-- `#cds-models/*` is imported with `import type` only. A value import of a generated entity proxy
-  at module scope re-enters the `@sap/cds` facade before it has initialized and crashes the server
-  (`cds.log is not a function`); entities still come from `this.entities` / `cds.entities(...)`
-  at runtime.
-- Both service files read `globalThis.cds` (falling back to the static import) into a `facade`
-  constant, because `cds serve` loading the two service modules concurrently as native ESM/TS can
-  leave the default `@sap/cds` import unresolved at class-definition time, throwing "Class extends
-  value undefined is not a constructor". Verified 5/5 failures without the fallback, 3/3 successes
-  with it.
+  `tsconfig.json`). `test/helpers.ts`, imported by every server test file, now throws immediately
+  if the variable is unset, so the previous silent failure — cds serving the entities with no
+  custom handlers, tests failing on puzzling status codes instead of a load error — can't recur
+  unnoticed.
+- New file `srv/lib/cds.ts` requires the `@sap/cds` singleton synchronously
+  (`createRequire(import.meta.url)('@sap/cds')`) instead of a static ESM import, and both service
+  files import `{ cds, type CDS }` from it. `@sap/cds` is CommonJS; `cds serve` loads the two
+  service modules concurrently, and a plain `import cds from '@sap/cds'` in either one can bind to
+  an empty object that never fills in, so `class X extends cds.ApplicationService` throws `Class
+  extends value undefined` at module evaluation, and deferring every access into `init()` still
+  fails later with `cds.log is not a function`. Verified 6/6 clean starts with the fix, 5/5
+  failures without. The same race is why `#cds-models/*` is imported with `import type` only: the
+  generated `@cds-models/_/index.js` itself value-imports `@sap/cds`, so a runtime import of a
+  generated entity proxy would drag the broken import back in; entities still come from
+  `this.entities` / `cds.entities(...)`.
 - No `prepare` script for type generation: `cds build` copies `scripts` into
   `gen/srv/package.json`, where a `prepare` hook would re-run during the production `npm ci`.
 - While touching `xs-security.json` for other reasons, confirmed its three scope `description`s

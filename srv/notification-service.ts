@@ -1,17 +1,6 @@
-import cds from '@sap/cds'
+import { cds, type CDS } from './lib/cds.ts'
 import nodemailer, { type Transporter } from 'nodemailer'
 import type { SpacefarerLaunched } from '#cds-models/SpacefarerService'
-
-// `@sap/cds` also publishes itself as `global.cds`. When this module is dynamically imported
-// concurrently with a sibling service module (both loaded as native ESM/TS by `cds serve`), the
-// default import above can resolve to an empty placeholder that Node hands out before the
-// `@sap/cds` CommonJS module has actually finished evaluating. `global.cds` is assigned
-// synchronously inside that module and is always the fully-initialized singleton by the time a
-// service's `init()` runs, so the runtime facade is read from there, falling back to the plain
-// import (e.g. under test runners that don't exhibit the race). Type positions (`cds.Request`,
-// ...) keep referring to the static import, which is resolved at compile time and is unaffected
-// by which object the import binds to at runtime.
-const facade: typeof cds = (globalThis as { cds?: typeof cds }).cds ?? cds
 
 /**
  * Sends the cosmic congratulation email.
@@ -21,23 +10,23 @@ const facade: typeof cds = (globalThis as { cds?: typeof cds }).cds ?? cds
  * transaction). After commit the queue runner dispatches it and the mail is sent; if the
  * transport throws, the message stays queued and is retried.
  */
-export class NotificationService extends facade.ApplicationService {
+export class NotificationService extends cds.ApplicationService {
   declare transporter: Transporter
 
   override init() {
-    // `cds.log` is only populated once the runtime has bootstrapped, so it is read here rather
-    // than at module scope (a module-scope access crashes the server at load).
-    const LOG = facade.log('notifications')
-    this.transporter = createTransporter(facade.env.mail ?? {}, LOG)
+    // Read here rather than at module scope: the cds runtime is only bootstrapped by the time
+    // a service initialises.
+    const LOG = cds.log('notifications')
+    this.transporter = createTransporter(cds.env.mail ?? {}, LOG)
 
-    facade.on('served', async () => {
-      const spacefarers = await facade.connect.to('SpacefarerService')
-      spacefarers.on('SpacefarerLaunched', (msg: cds.Request) => facade.queued(this).send('deliverWelcomeMail', { briefing: msg.data as SpacefarerLaunched }))
+    cds.on('served', async () => {
+      const spacefarers = await cds.connect.to('SpacefarerService')
+      spacefarers.on('SpacefarerLaunched', (msg: CDS.Request) => cds.queued(this).send('deliverWelcomeMail', { briefing: msg.data as SpacefarerLaunched }))
     })
 
-    this.on('deliverWelcomeMail', async (req: cds.Request) => {
+    this.on('deliverWelcomeMail', async (req: CDS.Request) => {
       const { briefing } = req.data as { briefing: SpacefarerLaunched }
-      const info = await this.transporter.sendMail(composeWelcomeMail(briefing, facade.env.mail?.from))
+      const info = await this.transporter.sendMail(composeWelcomeMail(briefing, cds.env.mail?.from))
       LOG.info(`Cosmic welcome sent to ${briefing.email} (${briefing.callSign})`)
       if (info.message) LOG.debug('Rendered mail:', String(info.message))
     })
