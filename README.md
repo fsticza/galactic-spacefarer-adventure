@@ -362,29 +362,37 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
   only `srv` and `@cds-models` — otherwise `cds build` would compile the tests into `gen/srv` —
   and `tsconfig.typecheck.json` extends it, widening `include` to `test` for local/CI checking.
 - **The `@sap/cds` path mapping has to point at the declaration file itself**,
-  `./node_modules/@cap-js/cds-types/dist/cds-types.d.ts`. The mapping `cds add typescript`
-  generates points at the package directory, which does not resolve under `moduleResolution:
-  NodeNext` (the package only exposes a `typings` field, not `exports`), and the resulting
-  `TS7016` cascades into "Property 'before' does not exist" on every service class.
-- **Tests must set `CDS_TYPESCRIPT`.** `vitest.config.ts` sets `env: { CDS_TYPESCRIPT: 'true' }`;
-  cds only looks for `.ts` service implementations when that variable is set (the `cds` CLI sets
-  it itself when it finds a `tsconfig.json`, but tests boot the server in-process and bypass the
-  CLI). Without it the server still starts and serves the entities, but **with no custom
-  handlers** — tests then fail with wrong status codes rather than with a load error, a silent
-  failure mode worth watching for.
-- **`#cds-models` is imported for types only.** A value import of a generated entity proxy at
-  module top level re-enters the `@sap/cds` facade before it has finished initializing and kills
-  the server with `TypeError: cds.log is not a function`. Entities still come from
-  `this.entities` / `cds.entities('galactic')` at runtime; `#cds-models/*` only supplies `import
-  type` positions.
-- **The `facade` constant in both service implementations is load-order defence, not style.**
-  `@sap/cds` is CommonJS; when `cds serve` imports the two service modules concurrently as native
-  ESM/TS, the default `import cds from '@sap/cds'` can still be unresolved at the point `class X
-  extends cds.ApplicationService` runs, throwing `TypeError: Class extends value undefined is not
-  a constructor or null`. Reading `globalThis.cds` with a fallback to the import fixes it —
-  verified 5 of 5 server starts failed without the fallback, 3 of 3 succeeded with it. Type
-  positions (`cds.Request`, `cds.User`, ...) still use the static import, which is resolved at
-  compile time and unaffected by which object the runtime import binds to.
+  `./node_modules/@cap-js/cds-types/dist/cds-types.d.ts` — `tsconfig.json` now carries a `"//"`
+  comment recording this, since the reason isn't visible from the mapping alone. The mapping `cds
+  add typescript` generates points at the package directory instead, which does not resolve under
+  `moduleResolution: NodeNext` (the package exposes only a `typings` field, not `exports`), and
+  the resulting `TS7016` cascades into "Property 'before' does not exist" on every service class.
+  Not something a version bump fixes, either: `@cap-js/cds-types` 0.19 still ships no
+  `types`/`exports` field (0.18.0 is what's installed here). The same comment records why
+  `include` stays narrow — `cds build` compiles whatever `tsconfig.json` includes into `gen/srv`.
+- **Tests must set `CDS_TYPESCRIPT`, and now fail loudly if it isn't.** `vitest.config.ts` sets
+  `env: { CDS_TYPESCRIPT: 'true' }`; cds only looks for `.ts` service implementations when that
+  variable is set (the `cds` CLI sets it itself when it finds a `tsconfig.json`, but tests boot
+  the server in-process and bypass the CLI). Without it, the server used to start anyway and serve
+  the entities with no custom handlers — tests then failed on puzzling status codes rather than a
+  load error. `test/helpers.ts`, imported by all five server test files, now throws a clear error
+  the moment the variable is missing, so that silent failure mode can't recur unnoticed.
+- **`srv/lib/cds.ts` requires the `@sap/cds` singleton synchronously, instead of a static ESM
+  import.** `@sap/cds` is CommonJS, and `cds serve` imports the two service modules concurrently;
+  a plain `import cds from '@sap/cds'` in either one can bind to an empty object that **never**
+  fills in — it is not a live binding that resolves later — so `class X extends
+  cds.ApplicationService` throws `Class extends value undefined` at module evaluation, and
+  deferring every access into `init()` still fails later with `cds.log is not a function`.
+  `createRequire(import.meta.url)('@sap/cds')` always yields the finished singleton, so both
+  service files start with `import { cds, type CDS } from './lib/cds.ts'` and use `cds.*` at
+  runtime, `CDS.Request` / `CDS.User` in type positions — the explanation lives once, in that
+  module, instead of as a per-file preamble. Verified: 6 of 6 clean starts with it, 5 of 5
+  failures without. The same race is why **`#cds-models` is imported for types only**: the
+  generated `@cds-models/_/index.js` itself does `import cds from '@sap/cds'`, so a value import
+  of a generated entity proxy would drag the broken ESM import straight back in, while a
+  type-only import is erased and costs nothing (confirmed by instrumenting the generated module —
+  it is never loaded at runtime). Entities still come from `this.entities` /
+  `cds.entities('galactic')`; `#cds-models/*` only supplies `import type` positions.
 - **No `prepare` script for type generation.** `cds build` copies the project's `scripts` into
   `gen/srv/package.json`, where a `prepare` hook would run again during the production `npm ci` —
   `generate-types` and `typecheck` are invoked explicitly (in CI, and by `npm run build` via the
@@ -425,7 +433,9 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
 │   ├── spacefarer-service.ts     NEW/CREATE/UPDATE handlers, planet boundary, event emit
 │   ├── notification-service.cds  internal NotificationService (@protocol: 'none')
 │   ├── notification-service.ts   nodemailer transport selection + mail template
-│   └── lib/spacefarer-rules.ts   pure validation/enhancement functions (unit-tested)
+│   └── lib/
+│       ├── cds.ts                 loads the @sap/cds singleton synchronously (see design decisions)
+│       └── spacefarer-rules.ts    pure validation/enhancement functions (unit-tested)
 ├── test/
 │   ├── *.test.ts                 auth, create, draft, metadata, notifications, rules
 │   ├── helpers.ts                shared request options, OData response types, boundary casts

@@ -1,5 +1,16 @@
 import type { Spacefarer } from '#cds-models/galactic'
 
+// cds only looks for `.ts` service implementations while CDS_TYPESCRIPT is set. The cds CLI sets
+// it itself, but an in-process boot such as `cds.test()` does not, and without it the server
+// starts happily and serves the entities with none of the custom handlers registered — which
+// surfaces as puzzling status codes rather than as a failure. vitest.config.ts sets it for the
+// whole run; fail loudly here if that ever stops being true.
+if (!process.env.CDS_TYPESCRIPT) {
+  throw new Error(
+    'CDS_TYPESCRIPT is not set, so cds would serve the entities without the TypeScript handlers. See vitest.config.ts.',
+  )
+}
+
 /** Base path of the Galactic Spacefarer Service. */
 export const BASE = '/odata/v4/spacefarers'
 
