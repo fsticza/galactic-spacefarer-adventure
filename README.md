@@ -61,7 +61,7 @@ npm run build     # cds build --production -> gen/db (HANA), gen/srv (Node.js, c
 HTTP client, covering every scenario below.
 
 ```bash
-cd app/spacefarers && npm install   # karma, karma-ui5, @sap-ux/ui5-middleware-fe-mockserver
+cd app/spacefarers && npm ci        # karma, karma-ui5, @sap-ux/ui5-middleware-fe-mockserver
 npm run test:ui                     # from the repo root: OPA5 journeys, headless, mock backend
 ```
 
@@ -439,7 +439,8 @@ headlessly, against a mock OData backend rather than the real CAP server:
   no auth handshake, and is the more common setup for Fiori Elements OPA5 journeys in CI.
 
 Run it locally: `npm run test:ui` (root) or `npm run test:opa` (from `app/spacefarers`); the
-latter needs `npm install` there first (see Quick start below). `npm run start:mock` (from
+latter needs `npm ci` there first (see Quick start below). The app keeps its own committed
+lockfile so that install — and the CI job's — is reproducible. `npm run start:mock` (from
 `app/spacefarers`) previews the app against the same mock server in a real browser.
 
 **Known flakiness, and why it's still wired into CI:** locally, this sandbox's network path
