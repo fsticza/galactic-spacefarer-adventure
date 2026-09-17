@@ -60,6 +60,13 @@ npm run build     # cds build --production -> gen/db (HANA), gen/srv (Node.js, c
 `test/http/spacefarers.http` has ready-to-run requests for a REST Client / IntelliJ
 HTTP client, covering every scenario below.
 
+```bash
+cd app/spacefarers && npm install   # karma, karma-ui5, @sap-ux/ui5-middleware-fe-mockserver
+npm run test:ui                     # from the repo root: OPA5 journeys, headless, mock backend
+```
+
+See "UI tests (OPA5)" below for what this covers and how it's wired into CI.
+
 ## Architecture
 
 Runtime flow from the Fiori app to the mailbox:
@@ -287,9 +294,11 @@ output, i.e. no findings.)
 | `metadata.test.ts` | `$metadata` shape: draft `IsActiveEntity` key, `Common.ValueList` on the three FK properties, `Core.Computed` on `callSign`, `Capabilities.InsertRestrictions` on `Planets` |
 | `helpers.ts` | Shared request-option constants (`asXavier`, ...), the `throwing` validateStatus option, and the `ODataCollection`/`ODataError`/`SpacefarerRow` types plus boundary-cast helpers used by the files above — no tests of its own |
 
-CI (`.github/workflows/ci.yml`) runs on Node 24: `npm ci`, `npm run generate-types` (writes
-`@cds-models/`, which is gitignored), `npm run lint`, `npm run typecheck`, `npm test`,
-`npm run build`, on every push to `main` and every pull request.
+CI (`.github/workflows/ci.yml`) runs on Node 24, on every push to `main` and every pull
+request, as two separate jobs so a UI failure and a service failure are distinguishable:
+`verify` — `npm ci`, `npm run generate-types` (writes `@cds-models/`, which is gitignored),
+`npm run lint`, `npm run typecheck`, `npm test`, `npm run build` — and `ui-opa5`, the OPA5
+journeys described under "UI tests (OPA5)" below.
 
 ## Deployment to SAP BTP (build-verified only, not deployed)
 
@@ -398,13 +407,61 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
   `generate-types` and `typecheck` are invoked explicitly (in CI, and by `npm run build` via the
   cds-typer build task) instead.
 
+## UI tests (OPA5)
+
+`app/spacefarers/webapp/test/integration/` ships two Fiori-tools-generated OPA5 journeys
+(list report load + navigate to object page) that, as generated, could not run at all: no
+`test/flp.html`, no QUnit entry point, and nothing in CI ever invoked them. They now run
+headlessly, against a mock OData backend rather than the real CAP server:
+
+- `webapp/localService/metadata.xml` — the service's real `$metadata`, captured once from a
+  running `cds-serve` (`curl -u xavier:planetx .../odata/v4/spacefarers/$metadata`) and
+  committed, so the mock server's generated data always matches the current model shape.
+- `app/spacefarers/ui5-mock.yaml` — the same `fiori-tools-proxy` (UI5 framework resources
+  from the SAPUI5 CDN) and `fiori-tools-preview` (the FLP sandbox at `/test/flp.html`,
+  generated on the fly — no physical file needed) middleware as `ui5.yaml`, plus
+  `@sap-ux/ui5-middleware-fe-mockserver` in front of `/odata/v4/spacefarers/`, with
+  `generateMockData: true` so no hand-maintained mock JSON is needed.
+  `builder.resources.excludes` (shared with `ui5.yaml`) keeps `/test/**` and
+  `/localService/**` out of any production build.
+- `app/spacefarers/karma.conf.js` runs `webapp/test/integration/opaTests.qunit.html`
+  through `karma-ui5` in `ChromeHeadless`. `opaTests.qunit.js` collects both journeys and
+  calls `JourneyRunner.run([...])` **once** — the generated `*.gen.js` files each used to
+  call `runner.run([journey])` on the same shared runner, which works for exactly one file
+  but registers OPA5's page objects a second time (a logged, non-fatal "namespace clash")
+  the moment a second generated journey is added.
+- **Backend choice: mock server, not the real CAP service.** Both were evaluated. The real
+  server needs a browser to authenticate against `cds.requires.auth`, and this project's
+  `[production]` profile is `xsuaa`-only (see the Security model section) — reusing the
+  mocked dev profile for a browser session would mean either HTTP Basic Auth (a native
+  browser dialog karma-ui5's headless iframe can't drive) or a relaxed test-only auth
+  profile, more moving parts for no gain here. The mock server needs no backend at all,
+  no auth handshake, and is the more common setup for Fiori Elements OPA5 journeys in CI.
+
+Run it locally: `npm run test:ui` (root) or `npm run test:opa` (from `app/spacefarers`); the
+latter needs `npm install` there first (see Quick start below). `npm run start:mock` (from
+`app/spacefarers`) previews the app against the same mock server in a real browser.
+
+**Known flakiness, and why it's still wired into CI:** locally, this sandbox's network path
+to the SAPUI5 CDN (used for `/resources` and `/test-resources`, since a cold headless Chrome
+profile has no HTTP cache) measured highly variable — single-file fetches of the same
+`sap-ui-core.js` ranged from 0.8s to 10.6s across five consecutive `curl` calls with nothing
+else running, with occasional `ECONNRESET`s and full stalls. Across 8 local runs while
+building this out, 4 passed cleanly (all 5 opaTests green) and 4 failed on an OPA5 step
+timeout or a browser disconnect — a measured, reproducible ~50% local failure rate, not a
+test-logic bug (every failure was a timeout/network error, never a wrong assertion). There is
+no way to remove the SAPUI5 CDN dependency here: `sap.fe.templates` and `sap.ushell` are not
+published to the public npm registry (unlike plain `sap.m`/`sap.ui.core`, under
+`@openui5/*`), so there's no offline/local-framework fallback available to this project.
+GitHub Actions runners get dedicated, well-provisioned network egress that this shared local
+sandbox does not, so the `ui-opa5` CI job's actual reliability was verified there directly
+(see the PR this shipped in) rather than assumed from local runs alone.
+
 ## Known limitations / next steps
 
 - **The Fiori app is not part of the BTP deployment yet** — see the deployment section above.
 - **The dev queue lives in the in-memory SQLite database** and is lost on a restart; a persistent
   SQLite profile or the production HANA profile would survive restarts.
-- **No browser-driven UI test** exercises the generated app; coverage is at the OData/service
-  level plus manual verification.
 - **ESLint does not cover the TypeScript sources.** `typescript-eslint` 8.70 supports TypeScript
   `>=4.8.4 <6.1.0`, and there is no release yet supporting TypeScript 7, so `eslint.config.mjs`
   has no rule set for `.ts` files at all — `npx eslint 'srv/**/*.ts'` reports every match ignored,
@@ -418,13 +475,17 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
 ├── @cds-models/                 generated by cds-typer (`npm run generate-types`); gitignored
 ├── .deploy/app-router/          standalone approuter (xs-app.json, package.json, default-env.json)
 ├── .env.example                 SMTP_URL / MAIL_TRANSPORT switches
-├── .github/workflows/ci.yml     npm ci, generate-types, lint, typecheck, test, build on Node 24
+├── .github/workflows/ci.yml     verify (npm ci/lint/typecheck/test/build) + ui-opa5, on Node 24
 ├── app/
 │   ├── services.cds             pulls app/spacefarers/annotations.cds into the served model
 │   └── spacefarers/             generated Fiori Elements V4 app (List Report + Object Page)
 │       ├── annotations.cds      hand-written UI annotations
 │       ├── ui5.yaml              fiori-tools-proxy to http://localhost:4004
+│       ├── ui5-mock.yaml          test-only: + sap-fe-mockserver, no CAP server needed
+│       ├── karma.conf.js          karma-ui5 + ChromeHeadless, see "UI tests (OPA5)"
 │       └── webapp/               manifest.json, Component.js, index.html, i18n
+│           ├── localService/metadata.xml  captured $metadata, feeds the mock server
+│           └── test/integration/          the two OPA5 journeys + opaTests.qunit.html/js
 ├── db/
 │   ├── schema.cds                domain model, namespace galactic
 │   └── data/                     Planets(6) SpacesuitColors(8) Departments(6) Positions(12) Spacefarers(60)

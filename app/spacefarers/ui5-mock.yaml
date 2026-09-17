@@ -1,0 +1,56 @@
+# yaml-language-server: $schema=https://sap.github.io/ui5-tooling/schema/ui5.yaml.json
+#
+# Test-only variant of ui5.yaml: same UI5-framework and FLP-preview middleware as the
+# development config, plus a mock OData server in front of /odata/v4/spacefarers/ so the
+# OPA5 journeys under webapp/test/integration run without a CAP server. See
+# webapp/localService/metadata.xml (captured from the real service's $metadata) and
+# `generateMockData` below, which fabricates plausible rows straight from that metadata.
+#
+# Used by:
+#   - `npm run start:mock` (manual preview against the mock server)
+#   - `npm run test:opa` (karma-ui5 embeds this same middleware stack headlessly)
+specVersion: "4.0"
+metadata:
+  name: galactic.spacefarers
+type: application
+server:
+  customMiddleware:
+    - name: sap-fe-mockserver
+      # Per @sap-ux/ui5-middleware-fe-mockserver's README, karma's own server stack needs
+      # `beforeMiddleware: csp` here instead of the `afterMiddleware: compression` used for
+      # a plain `ui5 serve`; `csp` is one of UI5 Tooling's built-in middlewares present in
+      # both the standalone and the karma-ui5-embedded middleware stack, so this ordering
+      # works for both `npm run start:mock` and `npm run test:opa`.
+      beforeMiddleware: csp
+      configuration:
+        mountPath: /
+        services:
+          - urlPath: /odata/v4/spacefarers/
+            metadataPath: ./webapp/localService/metadata.xml
+            generateMockData: true
+        annotations: []
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertErrors: false
+        ui5:
+          path:
+            - /resources
+            - /test-resources
+          url: https://sapui5.hana.ondemand.com
+    - name: fiori-tools-appreload
+      afterMiddleware: compression
+      configuration:
+        port: 35729
+        path: webapp
+        delay: 300
+    - name: fiori-tools-preview
+      afterMiddleware: fiori-tools-appreload
+      configuration:
+        flp:
+          theme: sap_horizon
+builder:
+  resources:
+    excludes:
+      - /test/**
+      - /localService/**

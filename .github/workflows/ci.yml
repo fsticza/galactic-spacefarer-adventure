@@ -22,3 +22,36 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Separate from `verify` on purpose: this job never starts the CAP server, so a red run
+  # here means the UI layer (list report, object page, annotations, value helps, draft
+  # flow) broke, not the service. It runs the OPA5 journeys under
+  # app/spacefarers/webapp/test/integration headlessly, against
+  # @sap-ux/ui5-middleware-fe-mockserver (mock OData data generated from
+  # webapp/localService/metadata.xml) rather than the real service, so it needs no backend
+  # and no test-auth profile. See app/spacefarers/karma.conf.js and ui5-mock.yaml for how,
+  # and `npm run test:ui` (from the repo root) to reproduce this locally.
+  ui-opa5:
+    name: OPA5 journeys (mock backend, headless Chrome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Set up headless Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+      # app/spacefarers is not an npm workspace: it has its own package.json (and its own
+      # gitignored package-lock.json, see the root .gitignore) with the UI5 tooling and
+      # test dependencies, independent of the root install `verify` uses.
+      - name: Install the Fiori app's own tooling
+        working-directory: app/spacefarers
+        run: npm install
+      - name: Run the OPA5 journeys headlessly
+        working-directory: app/spacefarers
+        run: npm run test:opa
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}

@@ -35,11 +35,13 @@ sap.ui.define([
 
 
 
-        opaTest("Teardown", function (Given, When, Then) { 
+        opaTest("Teardown", function (Given, When, Then) {
             // Cleanup
             Given.iTearDownMyApp();
         });
     }
 
-    runner.run([journey]);
+    // See the matching comment in SpacefarersListJourney.gen.js: runner.run() is called
+    // once, from opaTests.qunit.js, with every journey function — not once per file.
+    return journey;
 });

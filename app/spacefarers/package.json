@@ -8,12 +8,17 @@
     "sapui5"
   ],
   "main": "webapp/index.html",
-  "dependencies": {},
   "devDependencies": {
+    "@sap-ux/ui5-middleware-fe-mockserver": "^2.4.17",
+    "@sap/ux-ui5-tooling": "1",
     "@ui5/cli": "^4.0.33",
-    "@sap/ux-ui5-tooling": "1"
+    "karma": "^6.4.4",
+    "karma-chrome-launcher": "^3.2.0",
+    "karma-ui5": "^4.1.0"
   },
   "scripts": {
-    "deploy-config": "npx -p @sap/ux-ui5-tooling fiori add deploy-config cf"
+    "deploy-config": "npx -p @sap/ux-ui5-tooling fiori add deploy-config cf",
+    "start:mock": "ui5 serve --config ui5-mock.yaml --open index.html",
+    "test:opa": "karma start karma.conf.js"
   }
 }

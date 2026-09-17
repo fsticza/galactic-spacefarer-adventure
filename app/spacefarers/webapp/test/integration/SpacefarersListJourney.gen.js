@@ -57,5 +57,15 @@ sap.ui.define([
         });
     }
 
-    runner.run([journey]);
+    // Not calling runner.run([journey]) here: this file and
+    // SpacefarersObjectPageJourney.gen.js share the same JourneyRunner singleton
+    // (./pages/JourneyRunner), and JourneyRunner.run() registers OPA5 page objects as a
+    // side effect. Calling it once per file — as the Fiori tools generator emits by
+    // default — registers each shared page object (onTheShell and both
+    // onThe...Generated page objects) a second time and OPA5 logs an
+    // "Opa5 Page Object namespace clash" error for all three. opaTests.qunit.js instead
+    // collects the journey functions from every *.gen.js file and calls
+    // runner.run([...journeys]) exactly once, which is what JourneyRunner.run() expects
+    // when running more than one journey in the same test page.
+    return journey;
 });
