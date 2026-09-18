@@ -460,10 +460,41 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
 
 ## UI tests (OPA5)
 
+### What these tests can and cannot prove
+
+Worth stating plainly, because it is the first thing a reviewer should ask. These journeys run
+against a **mock** OData backend, so there is no CAP server behind them: **no before-CREATE
+handlers, no `SpacefarerLaunched` event, no NotificationService.** Every value is fabricated from
+the metadata. Asserting a call sign's shape or an onboarding bonus's arithmetic here would be
+asserting the mock's behaviour, not this project's — a green test proving nothing.
+
+The launch handlers and the cosmic event are therefore covered where they can be exercised for
+real, against a live service and database, by requests identical to the ones the UI issues:
+
+| Behaviour | Covered by |
+|---|---|
+| Validation + enhancement on create (planet defaulting, bonus, skill bump, call sign, certification) | `test/create.test.ts` |
+| The same handlers running on **draft activation** — the exact `POST` draft → `PATCH` → `draftActivate` sequence the Fiori create dialog issues | `test/draft.test.ts` |
+| The custom event end: exactly one welcome mail after a successful create carrying the generated call sign, nothing sent when the create is rejected, a failing transport leaving the message queued | `test/notifications.test.ts` |
+
+What the browser adds on top is the one thing those cannot see: that the elements the handlers
+write are actually bound into the UI. `LaunchFieldsJourney.js` opens a spacefarer and asserts the
+object page renders `Call Sign`, `Wormhole Certification` and `Onboarding Bonus`. It checks
+presence, not values — values are mock-generated — and it matches on the label text, which also
+means an unresolved `{i18n>...}` key fails it. Verified to have teeth by deleting `callSign` from
+`FieldGroup#Identity` and confirming that journey, and only that journey, went red.
+
+Asserting the welcome email from a browser is not possible at all: it goes to nodemailer's JSON
+transport and is logged server-side. `notifications.test.ts` swaps the transporter on the service
+instance, which is why that assertion lives there and cannot move here.
+
+### How they run
+
 `app/spacefarers/webapp/test/integration/` ships two Fiori-tools-generated OPA5 journeys
 (list report load + navigate to object page) that, as generated, could not run at all: no
 `test/flp.html`, no QUnit entry point, and nothing in CI ever invoked them. They now run
-headlessly, against a mock OData backend rather than the real CAP server:
+headlessly, alongside the hand-written `LaunchFieldsJourney.js`, against a mock OData backend
+rather than the real CAP server:
 
 - `webapp/localService/metadata.xml` — the service's real `$metadata`, captured once from a
   running `cds-serve` (`curl -u xavier:planetx .../odata/v4/spacefarers/$metadata`) and
