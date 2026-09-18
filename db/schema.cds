@@ -79,4 +79,13 @@ entity Spacefarers : cuid, managed {
                               when stardustCollection >= 100   then 2
                               else 1
                             end;
+  // Colours the certification in the list. Deliberately never 1 (negative/red): a Cadet is at
+  // the start of a career, not in an error state, so the bands read as information -> critical
+  // -> positive rather than as a pass/fail.
+  @title: '{i18n>CertificationCriticality}'
+  certificationCriticality : Integer = case
+                              when wormholeNavigationSkill >= 8 then 3
+                              when wormholeNavigationSkill >= 4 then 2
+                              else 5
+                            end;
 }

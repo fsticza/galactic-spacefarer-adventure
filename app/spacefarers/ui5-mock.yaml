@@ -25,6 +25,13 @@ server:
       configuration:
         mountPath: /
         services:
+          # metadata.xml is a CAPTURED COPY of the live service's $metadata, so it goes stale
+          # the moment the model or app/spacefarers/annotations.cds changes — and nothing
+          # fails when it does: the mock preview and the OPA5 journeys simply keep rendering
+          # the old UI, silently. Regenerate it after any such change:
+          #   npx cds serve --port 4005
+          #   curl -s -u xavier:planetx http://localhost:4005/odata/v4/spacefarers/\$metadata \
+          #     -o app/spacefarers/webapp/localService/metadata.xml
           - urlPath: /odata/v4/spacefarers/
             metadataPath: ./webapp/localService/metadata.xml
             generateMockData: true
