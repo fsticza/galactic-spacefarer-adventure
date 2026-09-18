@@ -6,6 +6,9 @@
   <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Common.xml">
     <edmx:Include Alias="Common" Namespace="com.sap.vocabularies.Common.v1"/>
   </edmx:Reference>
+  <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Communication.xml">
+    <edmx:Include Alias="Communication" Namespace="com.sap.vocabularies.Communication.v1"/>
+  </edmx:Reference>
   <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Core.V1.xml">
     <edmx:Include Alias="Core" Namespace="Org.OData.Core.V1"/>
   </edmx:Reference>
@@ -89,6 +92,7 @@
         <Property Name="wormholeCertification" Type="Edm.String" MaxLength="20"/>
         <Property Name="stardustStatus" Type="Edm.String" MaxLength="20"/>
         <Property Name="stardustCriticality" Type="Edm.Int32"/>
+        <Property Name="certificationCriticality" Type="Edm.Int32"/>
         <Property Name="IsActiveEntity" Type="Edm.Boolean" Nullable="false" DefaultValue="true"/>
         <Property Name="HasActiveEntity" Type="Edm.Boolean" Nullable="false" DefaultValue="false"/>
         <Property Name="HasDraftEntity" Type="Edm.Boolean" Nullable="false" DefaultValue="false"/>
@@ -232,6 +236,7 @@
                 <PropertyValue Property="Value" Path="callSign"/>
               </Record>
             </PropertyValue>
+            <PropertyValue Property="TypeImageUrl" String="sap-icon://person-placeholder"/>
           </Record>
         </Annotation>
         <Annotation Term="UI.SelectionFields">
@@ -240,31 +245,45 @@
             <PropertyPath>spacesuitColor_code</PropertyPath>
             <PropertyPath>department_ID</PropertyPath>
             <PropertyPath>stardustStatus</PropertyPath>
+            <PropertyPath>wormholeCertification</PropertyPath>
           </Collection>
         </Annotation>
         <Annotation Term="UI.LineItem">
           <Collection>
             <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="name"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/High"/>
             </Record>
             <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="originPlanet_code"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/High"/>
             </Record>
             <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="stardustCollection"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/High"/>
             </Record>
             <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="stardustStatus"/>
               <PropertyValue Property="Criticality" Path="stardustCriticality"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/High"/>
+            </Record>
+            <Record Type="UI.DataFieldForAnnotation">
+              <PropertyValue Property="Target" AnnotationPath="@UI.DataPoint#SkillProgress"/>
+              <PropertyValue Property="Label" String="Wormhole Navigation Skill"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/High"/>
+            </Record>
+            <Record Type="UI.DataField">
+              <PropertyValue Property="Value" Path="wormholeCertification"/>
+              <PropertyValue Property="Criticality" Path="certificationCriticality"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/Medium"/>
             </Record>
             <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="spacesuitColor_code"/>
-            </Record>
-            <Record Type="UI.DataField">
-              <PropertyValue Property="Value" Path="wormholeNavigationSkill"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/Low"/>
             </Record>
             <Record Type="UI.DataField">
               <PropertyValue Property="Value" Path="department_ID"/>
+              <Annotation Term="UI.Importance" EnumMember="UI.ImportanceType/Low"/>
             </Record>
           </Collection>
         </Annotation>
@@ -310,6 +329,15 @@
             <PropertyValue Property="TargetValue" Int="10"/>
           </Record>
         </Annotation>
+        <Annotation Term="UI.DataPoint" Qualifier="SkillProgress">
+          <Record Type="UI.DataPointType">
+            <PropertyValue Property="Value" Path="wormholeNavigationSkill"/>
+            <PropertyValue Property="Title" String="Wormhole Navigation Skill"/>
+            <PropertyValue Property="Visualization" EnumMember="UI.VisualizationType/Progress"/>
+            <PropertyValue Property="TargetValue" Int="10"/>
+            <PropertyValue Property="Criticality" Path="certificationCriticality"/>
+          </Record>
+        </Annotation>
         <Annotation Term="UI.Facets">
           <Collection>
             <Record Type="UI.ReferenceFacet">
@@ -323,6 +351,10 @@
             <Record Type="UI.ReferenceFacet">
               <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#Assignment"/>
               <PropertyValue Property="Label" String="Assignment"/>
+            </Record>
+            <Record Type="UI.ReferenceFacet">
+              <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#Biography"/>
+              <PropertyValue Property="Label" String="Biography"/>
             </Record>
             <Record Type="UI.ReferenceFacet">
               <PropertyValue Property="Target" AnnotationPath="@UI.FieldGroup#Log"/>
@@ -386,6 +418,14 @@
                 <Record Type="UI.DataField">
                   <PropertyValue Property="Value" Path="position_ID"/>
                 </Record>
+              </Collection>
+            </PropertyValue>
+          </Record>
+        </Annotation>
+        <Annotation Term="UI.FieldGroup" Qualifier="Biography">
+          <Record Type="UI.FieldGroupType">
+            <PropertyValue Property="Data">
+              <Collection>
                 <Record Type="UI.DataField">
                   <PropertyValue Property="Value" Path="bio"/>
                 </Record>
@@ -509,6 +549,7 @@
         <Annotation Term="Common.FieldControl" EnumMember="Common.FieldControlType/Mandatory"/>
       </Annotations>
       <Annotations Target="SpacefarerService.Spacefarers/email">
+        <Annotation Term="Communication.IsEmailAddress" Bool="true"/>
         <Annotation Term="Common.Label" String="Email"/>
         <Annotation Term="Common.FieldControl" EnumMember="Common.FieldControlType/Mandatory"/>
         <Annotation Term="Validation.Pattern" String="^[^@\s]+@[^@\s]+\.[^@\s]+$"/>
@@ -668,6 +709,11 @@
         <Annotation Term="UI.Hidden" Bool="true"/>
         <Annotation Term="Core.Computed" Bool="true"/>
         <Annotation Term="Common.Label" String="Stardust Criticality"/>
+      </Annotations>
+      <Annotations Target="SpacefarerService.Spacefarers/certificationCriticality">
+        <Annotation Term="UI.Hidden" Bool="true"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Common.Label" String="Certification Criticality"/>
       </Annotations>
       <Annotations Target="SpacefarerService.Spacefarers/IsActiveEntity">
         <Annotation Term="UI.Hidden" Bool="true"/>

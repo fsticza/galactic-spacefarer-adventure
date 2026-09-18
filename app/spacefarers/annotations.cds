@@ -6,24 +6,34 @@ annotate service.Spacefarers with @(
       TypeName: 'Spacefarer',
       TypeNamePlural: 'Spacefarers',
       Title: { Value: name },
-      Description: { Value: callSign }
+      Description: { Value: callSign },
+      // Fills the empty avatar slot in the object page header with an icon, since spacefarers
+      // carry no photo.
+      TypeImageUrl: 'sap-icon://person-placeholder'
     },
 
     SelectionFields: [
       originPlanet_code,
       spacesuitColor_code,
       department_ID,
-      stardustStatus
+      stardustStatus,
+      wormholeCertification
     ],
 
+    // Importance drives what a ResponsiveTable keeps when it runs out of width: without it
+    // every column is equal and the last ones defined (skill, department) were simply dropped
+    // at 1600px, which hid the one number the whole app is about. High = never dropped.
     LineItem: [
-      { $Type: 'UI.DataField', Value: name },
-      { $Type: 'UI.DataField', Value: originPlanet_code },
-      { $Type: 'UI.DataField', Value: stardustCollection },
-      { $Type: 'UI.DataField', Value: stardustStatus, Criticality: stardustCriticality },
-      { $Type: 'UI.DataField', Value: spacesuitColor_code },
-      { $Type: 'UI.DataField', Value: wormholeNavigationSkill },
-      { $Type: 'UI.DataField', Value: department_ID }
+      { $Type: 'UI.DataField', Value: name, @UI.Importance: #High },
+      { $Type: 'UI.DataField', Value: originPlanet_code, @UI.Importance: #High },
+      { $Type: 'UI.DataField', Value: stardustCollection, @UI.Importance: #High },
+      { $Type: 'UI.DataField', Value: stardustStatus, Criticality: stardustCriticality, @UI.Importance: #High },
+      // A 1..10 number says little at a glance; a progress bar against the maximum reads
+      // instantly and still sorts and filters as the underlying integer.
+      { $Type: 'UI.DataFieldForAnnotation', Target: '@UI.DataPoint#SkillProgress', Label: '{i18n>WormholeNavigationSkill}', @UI.Importance: #High },
+      { $Type: 'UI.DataField', Value: wormholeCertification, Criticality: certificationCriticality, @UI.Importance: #Medium },
+      { $Type: 'UI.DataField', Value: spacesuitColor_code, @UI.Importance: #Low },
+      { $Type: 'UI.DataField', Value: department_ID, @UI.Importance: #Low }
     ],
 
     PresentationVariant: {
@@ -51,10 +61,21 @@ annotate service.Spacefarers with @(
       TargetValue: 10
     },
 
+    // Same element as #Skill, shown as a bar rather than ten stars: stars are fine in the roomy
+    // object page header, but would dominate a table row.
+    DataPoint #SkillProgress: {
+      Value: wormholeNavigationSkill,
+      Title: '{i18n>WormholeNavigationSkill}',
+      Visualization: #Progress,
+      TargetValue: 10,
+      Criticality: certificationCriticality
+    },
+
     Facets: [
       { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Identity', Label: 'Cosmic Identity' },
       { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Skills', Label: 'Cosmic Skills' },
       { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Assignment', Label: 'Assignment' },
+      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Biography', Label: 'Biography' },
       { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Log', Label: 'Launch Log' }
     ],
 
@@ -81,7 +102,14 @@ annotate service.Spacefarers with @(
     FieldGroup #Assignment: {
       Data: [
         { Value: department_ID },
-        { Value: position_ID },
+        { Value: position_ID }
+      ]
+    },
+
+    // `bio` is a LargeString rendered as a multi-line text. In the four-column Assignment grid
+    // it was squeezed into one narrow cell; its own facet gives it the full width.
+    FieldGroup #Biography: {
+      Data: [
         { Value: bio }
       ]
     },
@@ -119,8 +147,12 @@ annotate service.Spacefarers with {
   spacesuitColor @Common: { Text: spacesuitColor.name, TextArrangement: #TextOnly, ValueListWithFixedValues };
   department     @Common: { Text: department.name, TextArrangement: #TextOnly };
   position       @Common: { Text: position.title, TextArrangement: #TextOnly };
-  ID                  @UI.Hidden;
-  stardustCriticality @UI.Hidden;
+  // Renders the address as a mailto link instead of plain text, in both the list and the
+  // object page.
+  email @Communication.IsEmailAddress;
+  ID                       @UI.Hidden;
+  stardustCriticality      @UI.Hidden;
+  certificationCriticality @UI.Hidden;
 };
 
 annotate service.Departments with @UI.Identification: [{ Value: name }];
