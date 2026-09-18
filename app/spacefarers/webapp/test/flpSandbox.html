@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!--
+  Launchpad sandbox entry point.
+
+  Fiori Elements does not draw its own back button: the shell bar owns it. index.html bootstraps
+  the component on its own (sap/ui/core/ComponentSupport), so there is no shell there and the
+  object page becomes a dead end - the only way back to the list is the browser's back button.
+
+  This page boots the ushell sandbox first and runs the very same component inside it, which is
+  what a spacefarer manager gets on BTP, where the launchpad (or the approuter's FLP) supplies
+  the shell. Serve it from CAP at /spacefarers/webapp/test/flpSandbox.html.
+
+  Note the OPA5 journeys use a *different* sandbox: /test/flp.html, generated on the fly by the
+  fiori-tools-preview middleware, which exists only under `ui5 serve`. This file is checked in so
+  the CAP-served app - the one the README tells people to open - has a shell too.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galactic Spacefarers</title>
+    <script type="text/javascript">
+        window["sap-ushell-config"] = {
+            defaultRenderer: "fiori2",
+            renderers: {
+                fiori2: {
+                    componentData: {
+                        config: {
+                            enableSearch: false
+                        }
+                    }
+                }
+            },
+            applications: {
+                "Spacefarer-display": {
+                    title: "Galactic Spacefarers",
+                    description: "Spacefarer roster across the SAP galaxy",
+                    applicationType: "SAPUI5",
+                    additionalInformation: "SAPUI5.Component=galactic.spacefarers",
+                    url: "../"
+                }
+            }
+        };
+    </script>
+    <script src="https://sapui5.hana.ondemand.com/1.152.0/test-resources/sap/ushell/bootstrap/sandbox.js"></script>
+    <script
+        id="sap-ui-bootstrap"
+        src="https://sapui5.hana.ondemand.com/1.152.0/resources/sap-ui-core.js"
+        data-sap-ui-libs="sap.m,sap.ushell,sap.fe.templates"
+        data-sap-ui-theme="sap_horizon"
+        data-sap-ui-compat-version="edge"
+        data-sap-ui-async="true"
+        data-sap-ui-frame-options="allow"
+        data-sap-ui-resource-roots='{
+            "galactic.spacefarers": "../"
+        }'
+    ></script>
+    <script type="text/javascript">
+        sap.ui.require(["sap/ushell/Container"], function (Container) {
+            Container.createRenderer(undefined, true).then(function (renderer) {
+                renderer.placeAt("content");
+            });
+        });
+    </script>
+</head>
+<body class="sapUiBody" id="content"></body>
+</html>

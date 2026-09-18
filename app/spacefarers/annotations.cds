@@ -3,8 +3,8 @@ using SpacefarerService as service from '../../srv/spacefarer-service';
 annotate service.Spacefarers with @(
   UI: {
     HeaderInfo: {
-      TypeName: 'Spacefarer',
-      TypeNamePlural: 'Spacefarers',
+      TypeName: '{i18n>SpacefarerTypeName}',
+      TypeNamePlural: '{i18n>SpacefarerTypeNamePlural}',
       Title: { Value: name },
       Description: { Value: callSign },
       // Fills the empty avatar slot in the object page header with an icon, since spacefarers
@@ -50,13 +50,13 @@ annotate service.Spacefarers with @(
 
     DataPoint #Stardust: {
       Value: stardustCollection,
-      Title: 'Stardust Collection',
+      Title: '{i18n>StardustCollection}',
       Criticality: stardustCriticality
     },
 
     DataPoint #Skill: {
       Value: wormholeNavigationSkill,
-      Title: 'Wormhole Navigation Skill',
+      Title: '{i18n>WormholeNavigationSkill}',
       Visualization: #Rating,
       TargetValue: 10
     },
@@ -72,11 +72,11 @@ annotate service.Spacefarers with @(
     },
 
     Facets: [
-      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Identity', Label: 'Cosmic Identity' },
-      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Skills', Label: 'Cosmic Skills' },
-      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Assignment', Label: 'Assignment' },
-      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Biography', Label: 'Biography' },
-      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Log', Label: 'Launch Log' }
+      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Identity', Label: '{i18n>FacetIdentity}' },
+      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Skills', Label: '{i18n>FacetSkills}' },
+      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Assignment', Label: '{i18n>FacetAssignment}' },
+      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Biography', Label: '{i18n>FacetBiography}' },
+      { $Type: 'UI.ReferenceFacet', Target: '@UI.FieldGroup#Log', Label: '{i18n>FacetLog}' }
     ],
 
     FieldGroup #Identity: {

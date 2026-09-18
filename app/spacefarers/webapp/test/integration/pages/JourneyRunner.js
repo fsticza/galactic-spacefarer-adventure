@@ -6,6 +6,17 @@ sap.ui.define([
     'use strict';
 
     const runner = new JourneyRunner({
+        // Stays on the fiori-tools-preview middleware's generated /test/flp.html, NOT the
+        // checked-in test/flpSandbox.html that humans use.
+        //
+        // Pointing these journeys at the full ushell sandbox was tried and reverted: CI came back
+        // 3 of 5 FAILED in 4m30s, with real assertion failures inside sap.fe.test's own
+        // FilterBarActions (`iExecuteSearch`, Expected: true / Actual: false), not timeouts. The
+        // generated page objects are written against this lightweight preview shell, and a full
+        // launchpad changes what they find.
+        //
+        // So the suite covers the app, not the launchpad wrapper around it. The sandbox is
+        // verified by opening it - see the entry-point table in the README.
         launchUrl: sap.ui.require.toUrl('galactic/spacefarers') + '/test/flp.html#app-preview',
         pages: {
 			onTheSpacefarersListGenerated: SpacefarersListGenerated,

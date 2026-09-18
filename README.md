@@ -42,6 +42,21 @@ Open `http://localhost:4004` — it lists the service and an app link (`/spacefa
 or run `npm run watch-spacefarers` to open the app directly. The browser asks for basic auth;
 **use a private window per user**, since browsers cache basic-auth credentials per origin.
 
+Two entry points, and the difference matters:
+
+| Path | What you get |
+|---|---|
+| `/spacefarers/webapp/test/flpSandbox.html#Spacefarer-display` | The app inside a launchpad sandbox shell — **use this one**. Fiori Elements does not draw its own back button; the shell bar owns it, so this is the only entry point from which you can get back from a spacefarer to the list without the browser's back button. It is also what BTP gives you, where the launchpad supplies the shell. |
+| `/spacefarers/webapp/index.html` | The bare component, no shell. Fine for a quick look at the list, but the object page is a dead end. |
+
+`npm run watch-spacefarers` opens the first one.
+
+One limit worth stating: the OPA5 journeys do **not** run against this sandbox. Pointing them at
+it was tried and reverted — CI came back 3 of 5 failed, inside `sap.fe.test`'s own filter-bar
+actions rather than on timeouts, because the generated page objects are written against the
+lightweight `fiori-tools-preview` shell and a full launchpad changes what they find. The suite
+therefore covers the app; the launchpad wrapper around it is verified by opening it.
+
 | User | Password | Role | Planet |
 |---|---|---|---|
 | xavier | planetx | SpacefarerManager | X |
@@ -270,6 +285,29 @@ had to come second. `app/spacefarers/annotations.cds` then adds:
 - **`Common.Text` + `TextArrangement: #TextOnly`** on every association, and
   `Common.ValueListWithFixedValues` on planet and suit color, so both render as dropdowns backed
   by the code-list value helps.
+
+### Texts (English only, on purpose)
+
+Every user-facing string resolves from a bundle; none is hardcoded. There is exactly one
+language — adding more is a matter of dropping `i18n_<locale>.properties` next to the English
+file, not of changing code.
+
+| Bundle | Holds | Consumed by |
+|---|---|---|
+| `_i18n/i18n.properties` | model element labels (`@title: '{i18n>...}'`) **and** the app's annotation texts — object page type name, facet labels, `DataPoint` titles | CAP, at compile time; the resolved text is what `$metadata` serves |
+| `_i18n/messages.properties` | the six runtime error messages, with `{0}`/`{1}` placeholders | CAP, at request time |
+| `app/spacefarers/webapp/i18n/i18n.properties` | the app title and description shown by the launchpad | UI5, at runtime |
+
+Two things worth knowing:
+
+- Annotation texts in `app/spacefarers/annotations.cds` resolve against the **root** `_i18n`
+  bundle, not an app-local one, even though `app/spacefarers` has its own `package.json`. That is
+  worth verifying rather than assuming — check the served `$metadata` for the resolved text, and
+  note that `cds compile srv` alone will not show it, because it does not include `app/`.
+- `manifest.json` declares `"supportedLocales": [""]` and `"fallbackLocale": ""` on `sap.app.i18n`
+  and on both resource models. Without it UI5 probes for `i18n_en.properties` on every start and
+  logs a 404 for a file that is deliberately absent. Declaring the single supported locale says
+  "English only" explicitly instead of leaving it to fallback behaviour.
 - A **dynamic `Common.FieldControl`** on `originPlanet` instead of `@Core.Immutable`: read-only
   once the row is active, mandatory while still a new draft (`{ $If: [{ $Eq: [{ $Path:
   'HasActiveEntity' }, true] }, 1, 7] }`). `@Core.Immutable` was tried first and dropped — cds 10
