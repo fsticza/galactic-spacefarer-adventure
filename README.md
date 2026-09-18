@@ -51,7 +51,7 @@ or run `npm run watch-spacefarers` to open the app directly. The browser asks fo
 | nobody | nobody | (none — 403) | — |
 
 ```bash
-npm test         # vitest run                                -> 6 files, 71 tests
+npm test         # vitest run                                -> 8 files, 87 tests
 npm run lint      # cds lint                                  -> no findings (CDS model only; see Known limitations)
 npm run typecheck # tsc --noEmit -p tsconfig.typecheck.json    -> no output
 npm run build     # cds build --production -> gen/db (HANA), gen/srv (Node.js, compiled from TypeScript)
@@ -277,8 +277,8 @@ and filtering are server-side `$orderby`/`$filter` requests; paging shows up as 
 ## Tests
 
 ```
-Test Files  6 passed (6)
-     Tests  71 passed (71)
+Test Files  8 passed (8)
+     Tests  87 passed (87)
 ```
 
 (`npm test`, reproduced on this checkout; `npm run lint` and `npm run typecheck` both produced no
@@ -287,11 +287,13 @@ output, i.e. no findings.)
 | File | Covers |
 |---|---|
 | `rules.test.ts` | Certification bands, call-sign formatting, `completeAssignment`, `validateCandidate`, `enhanceCandidate` (bonus, hazard bump, both caps, no-mutation) |
+| `mail-content.test.ts` | Pure unit tests for `composeWelcomeMail`: subject, plain-text body fields, `to`/`from` addressing (default and override, undefined when the email is null or missing), HTML entity escaping in the `html` part (the raw `<script>` substring never reaches it) while the `text` part is deliberately left unescaped |
 | `auth.test.ts` | 401 anonymous, 403 no-role; per-role counts (24/20/60); Planets visible to everyone; PATCH boundaries (viewer 403, own-planet 200, cross-planet 403/404) |
 | `create.test.ts` | Full validation/enhancement matrix, direct active POST, cross-planet 403, missing-planet 400, admin create with hazard bonus, all 400 cases (range, duplicate email, below-minimum skill, position/department mismatch), calculated-element `$filter`/`$orderby`, paging, update re-validation, planet immutability, delete boundaries |
 | `draft.test.ts` | New-draft defaults, PATCH, `draftActivate` running the CREATE handlers, cross-planet draft rejection, `draftEdit` on an existing row incl. cross-planet 403/404 |
 | `notifications.test.ts` | Exactly one mail sent and outbox drained on success; nothing sent on a 400; a throwing transport leaves the message queued with `attempts >= 1` |
 | `metadata.test.ts` | `$metadata` shape: draft `IsActiveEntity` key, `Common.ValueList` on the three FK properties, `Core.Computed` on `callSign`, `Capabilities.InsertRestrictions` on `Planets` |
+| `messages.test.ts` | All six service error-message `_i18n` keys actually resolve, over real HTTP with interpolation, from the text bundle; a seventh test that `$metadata` serves resolved model-label text and contains no raw `{i18n>` key at all — guards against CAP passing an unresolvable key through as the literal user-facing message, which a renamed key or an unpackaged bundle would otherwise leave green |
 | `helpers.ts` | Shared request-option constants (`asXavier`, ...), the `throwing` validateStatus option, and the `ODataCollection`/`ODataError`/`SpacefarerRow` types plus boundary-cast helpers used by the files above — no tests of its own |
 
 CI (`.github/workflows/ci.yml`) runs on Node 24, on every push to `main` and every pull
@@ -384,7 +386,7 @@ production. Also, `test/http/spacefarers.http` is hand-written rather than gener
   variable is set (the `cds` CLI sets it itself when it finds a `tsconfig.json`, but tests boot
   the server in-process and bypass the CLI). Without it, the server used to start anyway and serve
   the entities with no custom handlers — tests then failed on puzzling status codes rather than a
-  load error. `test/helpers.ts`, imported by all five server test files, now throws a clear error
+  load error. `test/helpers.ts`, imported by all six server test files, now throws a clear error
   the moment the variable is missing, so that silent failure mode can't recur unnoticed.
 - **`srv/lib/cds.ts` requires the `@sap/cds` singleton synchronously, instead of a static ESM
   import.** `@sap/cds` is CommonJS, and `cds serve` imports the two service modules concurrently;
@@ -499,7 +501,7 @@ sandbox does not, so the `ui-opa5` CI job's actual reliability was verified ther
 │       ├── cds.ts                 loads the @sap/cds singleton synchronously (see design decisions)
 │       └── spacefarer-rules.ts    pure validation/enhancement functions (unit-tested)
 ├── test/
-│   ├── *.test.ts                 auth, create, draft, metadata, notifications, rules
+│   ├── *.test.ts                 auth, create, draft, mail-content, messages, metadata, notifications, rules
 │   ├── helpers.ts                shared request options, OData response types, boundary casts
 │   └── http/spacefarers.http     manual REST Client requests
 ├── xs-security.json              XSUAA scopes, role templates, planet attribute
