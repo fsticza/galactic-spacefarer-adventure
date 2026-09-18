@@ -30,7 +30,7 @@
   "scripts": {
     "start": "cds-serve",
     "watch": "cds watch",
-    "watch-spacefarers": "cds watch --open galactic.spacefarers/index.html?sap-ui-xx-viewCache=false --livereload false",
+    "watch-spacefarers": "cds watch --open spacefarers/webapp/test/flpSandbox.html?sap-ui-xx-viewCache=false#Spacefarer-display --livereload false",
     "test": "vitest run",
     "lint": "cds lint",
     "build": "cds build --production",

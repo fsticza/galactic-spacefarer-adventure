@@ -6,7 +6,12 @@ sap.ui.define([
     'use strict';
 
     const runner = new JourneyRunner({
-        launchUrl: sap.ui.require.toUrl('galactic/spacefarers') + '/test/flp.html#app-preview',
+        // The checked-in sandbox, not the fiori-tools-preview middleware's generated
+        // /test/flp.html. That one exists only under `ui5 serve`, so the journeys used to
+        // exercise a shell that the CAP-served app - the one the README tells people to open -
+        // never had. Pointing them here means CI verifies the entry point users actually get,
+        // including the shell back button that returns them from the object page to the list.
+        launchUrl: sap.ui.require.toUrl('galactic/spacefarers') + '/test/flpSandbox.html#Spacefarer-display',
         pages: {
 			onTheSpacefarersListGenerated: SpacefarersListGenerated,
 			onTheSpacefarersObjectPageGenerated: SpacefarersObjectPageGenerated
