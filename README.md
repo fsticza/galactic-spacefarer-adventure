@@ -51,6 +51,12 @@ Two entry points, and the difference matters:
 
 `npm run watch-spacefarers` opens the first one.
 
+One limit worth stating: the OPA5 journeys do **not** run against this sandbox. Pointing them at
+it was tried and reverted — CI came back 3 of 5 failed, inside `sap.fe.test`'s own filter-bar
+actions rather than on timeouts, because the generated page objects are written against the
+lightweight `fiori-tools-preview` shell and a full launchpad changes what they find. The suite
+therefore covers the app; the launchpad wrapper around it is verified by opening it.
+
 | User | Password | Role | Planet |
 |---|---|---|---|
 | xavier | planetx | SpacefarerManager | X |
