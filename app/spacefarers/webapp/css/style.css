@@ -1,0 +1,81 @@
+/*
+ * Galactic Spacefarer Adventure - theme accents.
+ *
+ * The heavy lifting is done by `sap_horizon_dark` (see index.html and test/flpSandbox.html):
+ * a roster of people who fly through wormholes reads better on a dark ground than on a white
+ * one. This file only adds the setting behind it.
+ *
+ * Deliberately restrained. It paints the page *ground* — the surface Fiori leaves empty behind
+ * headers, tables and forms — and never the controls themselves: no overridden text colours, no
+ * restyled buttons, no touched table rows. Those carry Horizon's contrast guarantees, and a
+ * starfield behind a data grid is decoration, not a reason to make a number harder to read.
+ */
+
+/* Deep space, with a faint galactic glow off to one side. */
+.sapUiBody,
+.sapUshellShell {
+  background-color: #060a18;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 15% -10%, rgba(88, 74, 180, 0.28), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 95% 105%, rgba(28, 110, 160, 0.22), transparent 62%);
+  background-attachment: fixed;
+}
+
+/*
+ * Stars. Four layers of tiny radial gradients tiled at different sizes, so the repeat is not
+ * obvious. `background-attachment: fixed` keeps them still while content scrolls, which reads as
+ * depth rather than as a moving texture.
+ */
+.sapUiBody::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.85;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255, 255, 255, 0.95), transparent),
+    radial-gradient(1.5px 1.5px at 70% 15%, rgba(210, 225, 255, 0.85), transparent),
+    radial-gradient(1.5px 1.5px at 40% 75%, rgba(255, 245, 220, 0.8), transparent),
+    radial-gradient(2px 2px at 85% 60%, rgba(255, 255, 255, 0.75), transparent);
+  background-size: 200px 200px, 150px 150px, 240px 240px, 120px 120px;
+  background-repeat: repeat;
+}
+
+/*
+ * Let the ground show through the shell and the outer page frames, which are otherwise painted a
+ * flat theme colour, so the starfield reads in the margins around the content.
+ *
+ * `.sapFDynamicPageContentWrapper` is deliberately NOT in this list. It is the scroll container
+ * behind the table, and Fiori's sticky column header draws on top of it: make it transparent and
+ * rows smear through the header as you scroll. Decoration is not worth an unreadable header.
+ */
+.sapUshellShell,
+.sapUshellShell .sapUShellDashboardView,
+.sapFDynamicPage,
+.sapMPage,
+.sapUxAPObjectPageLayout,
+.sapUxAPObjectPageLayoutRootElement {
+  background-color: transparent;
+}
+
+.sapUiBody > * {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * The object page header is the one piece of chrome that gets a nudge: a soft horizon glow under
+ * the spacefarer's name, echoing a planet's edge from orbit.
+ */
+.sapUxAPObjectPageHeader,
+.sapUxAPObjectPageHeaderContent {
+  background-image: linear-gradient(180deg, rgba(96, 130, 220, 0.16), transparent 70%);
+}
+
+/* Respect a reader who has asked for less motion or less contrast: drop the starfield entirely. */
+@media (prefers-reduced-motion: reduce), (prefers-contrast: more) {
+  .sapUiBody::before {
+    display: none;
+  }
+}
