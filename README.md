@@ -117,7 +117,10 @@ classDiagram
 
 Seed data: 6 planets, 8 suit colors, 6 departments, 12 positions, 60 spacefarers (24 on Planet X,
 20 on Planet Y, 16 elsewhere) — enough to exceed the default page size and exercise
-`@odata.nextLink`. Two elements are calculated on read, filterable and sortable server-side:
+`@odata.nextLink`. Three elements are calculated on read, filterable and sortable server-side —
+`stardustStatus` with its `stardustCriticality`, plus `certificationCriticality`, which colours the
+wormhole certification in the list (3 positive from skill 8, 2 critical from 4, otherwise 5
+information — never 1/negative, since a Cadet is starting out, not failing):
 
 | `stardustCollection` | `stardustStatus` | `stardustCriticality` (`UI.CriticalityType`) |
 |---|---|---|
@@ -248,14 +251,22 @@ any annotation was written by hand — the generator overwrites `annotations.cds
 had to come second. `app/spacefarers/annotations.cds` then adds:
 
 - **`UI.LineItem`**: name, origin planet, stardust collection, `stardustStatus` colored by
-  `stardustCriticality`, spacesuit color, wormhole skill, department — via the generated scalar
-  foreign-key properties (`originPlanet_code`, `department_ID`, ...), which render more reliably
-  in Fiori Elements than association-valued fields.
-- **`UI.SelectionFields`**: origin planet, spacesuit color, department, stardust status.
+  `stardustCriticality`, wormhole skill as a progress bar (`DataPoint#SkillProgress`), wormhole
+  certification colored by `certificationCriticality`, spacesuit color, department — via the
+  generated scalar foreign-key properties (`originPlanet_code`, `department_ID`, ...), which
+  render more reliably in Fiori Elements than association-valued fields. Every entry carries a
+  `@UI.Importance`: without one a `ResponsiveTable` treats all columns as equal and drops
+  whichever are defined last, which hid skill and department entirely at 1600px. `#High` keeps
+  name, planet, stardust and skill; spacesuit color and department are `#Low` and shed first.
+- **`UI.SelectionFields`**: origin planet, spacesuit color, department, stardust status,
+  wormhole certification.
 - **`UI.PresentationVariant`**: default sort by `stardustCollection` descending.
 - **`UI.HeaderFacets`** with two `UI.DataPoint`s: `#Stardust` (colored by criticality) and
   `#Skill` (`Visualization: #Rating`, `TargetValue: 10` — a 10-star rating control).
-- **`UI.FieldGroup`s** on the Object Page: Cosmic Identity, Cosmic Skills, Assignment, Launch Log.
+- **`UI.FieldGroup`s** on the Object Page: Cosmic Identity, Cosmic Skills, Assignment, Biography
+  (its own facet, so the `LargeString` `bio` gets full width instead of one narrow grid cell),
+  Launch Log. The header carries an icon avatar via `HeaderInfo.TypeImageUrl`, and `email` is
+  annotated `@Communication.IsEmailAddress` so it renders as a mailto link.
 - **`Common.Text` + `TextArrangement: #TextOnly`** on every association, and
   `Common.ValueListWithFixedValues` on planet and suit color, so both render as dropdowns backed
   by the code-list value helps.
